@@ -21,7 +21,7 @@ The game follows strict Callbreak-style trick-taking logic, with an explicit exc
 
 **Card Playing Rules for any Player's Turn:**
 1. **Follow Suit**: The player MUST play a card of the leading suit if they have one.
-    * **Condition A (Must Head)**: If no Trump (Special Symbol) has been played yet in the current trick, the player MUST play a card higher than the current highest card of the leading suit (if they have one).
+    * **Condition A (Must Head)**: If no Trump (Special Symbol) has been played yet in the current trick, AND the player possesses a card of the leading suit that can strictly beat the current highest card on the table, they MUST play it. (If they cannot beat the highest card, e.g., an Ace is on the table, they may throw a lower card of that suit to save their high cards).
     * **Condition B (Can Save)**: If a Trump (Special Symbol) *has* already been played by another player, the player knows their leading suit card cannot win. In this case, the player does NOT have to play a high card. They are permitted to play a lower card of the leading suit to save their high cards.
 2. **Trump if Void**: If the player does NOT have the leading suit, they MUST play a Trump card (Special Symbol) if they have one. (Note: standard rules usually mandate over-trumping if possible. The game will enforce playing a Trump, and if multiple trumps have been played, they must play a higher Trump if possible).
 3. **Discard**: If the player does NOT have the leading suit AND does NOT have any Trump cards, they may play any card.

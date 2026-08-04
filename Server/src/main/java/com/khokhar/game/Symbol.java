@@ -1,6 +1,6 @@
 package com.khokhar.game;
 
-public enum Suit {
+public enum Symbol {
     SPADES,
     HEARTS,
     DIAMONDS,

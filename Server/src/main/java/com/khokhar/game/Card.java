@@ -1,16 +1,19 @@
 package com.khokhar.game;
 
+/**
+ * Represents a single playing card in the Plus Minus game.
+ */
 public class Card {
-    private Suit suit;
+    private Symbol symbol;
     private Rank rank;
 
-    public Card(Suit suit, Rank rank) {
-        this.suit = suit;
+    public Card(Symbol symbol, Rank rank) {
+        this.symbol = symbol;
         this.rank = rank;
     }
 
-    public Suit getSuit() {
-        return suit;
+    public Symbol getSymbol() {
+        return symbol;
     }
 
     public Rank getRank() {
@@ -19,6 +22,6 @@ public class Card {
 
     @Override
     public String toString() {
-        return rank + " of " + suit;
+        return rank + " of " + symbol;
     }
 }
