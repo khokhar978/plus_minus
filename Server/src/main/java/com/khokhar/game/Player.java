@@ -28,7 +28,17 @@ public class Player {
     public void removeCard(Card card) { hand.remove(card); }
     public void clearHand() { hand.clear(); }
 
-    public boolean hasCard(Card card) { return hand.contains(card); }
+    public boolean hasCard(Card card) {
+        return hand.contains(card);
+    }
+
+    public boolean hasSymbol(Symbol symbol) {
+        for (Card c : hand) {
+            if (c.getSymbol() == symbol) return true;
+        }
+        return false;
+    }
+
     public boolean isEmpty() { return hand.isEmpty(); }
     public int getCardCount() { return hand.size(); }
 

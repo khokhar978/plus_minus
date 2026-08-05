@@ -23,10 +23,6 @@ public class Trick {
             startingSymbol = card.getSymbol();
             currentHighestCard = card;
             currentlyWinning = player;
-            
-            if (startingSymbol == specialSymbol) {
-                isTrumpUsed = true;
-            }
         } else {
             if (card.getSymbol() == specialSymbol && startingSymbol != specialSymbol) {
                 isTrumpUsed = true;
