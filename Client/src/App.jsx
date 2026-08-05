@@ -3,13 +3,18 @@ import Lobby from './Lobby'
 import Bidding from './Bidding'
 import Playing from './Playing'
 import Leaderboard from './Leaderboard'
+import PlayerBubbles from './PlayerBubbles'
 
 export default function App() {
-  const [gameState, setGameState] = useState('LOBBY'); // LOBBY, BIDDING_1, BIDDING_2, PLAYING
+  const [gameState, setGameState] = useState('LOBBY');
   const [myName, setMyName] = useState('');
   const [hand, setHand] = useState([]);
   const [turn, setTurn] = useState('');
   const [error, setError] = useState('');
+  
+  // Lobby states
+  const [playersList, setPlayersList] = useState([]);
+  const [readyPlayers, setReadyPlayers] = useState([]);
   
   // Bidding states
   const [highestBidder, setHighestBidder] = useState('None');
@@ -18,19 +23,16 @@ export default function App() {
   
   // Playing states
   const [table, setTable] = useState([]);
-  const [myTricks, setMyTricks] = useState(0);
-  const [lobbyCount, setLobbyCount] = useState(0);
+  const [trickWinner, setTrickWinner] = useState(null);
   
   // Scoring states
   const [scores, setScores] = useState([]);
   const [gameWinner, setGameWinner] = useState(null);
 
-  // Use a ref so the WebSocket is created ONCE and never destroyed on re-render
   const wsRef = useRef(null);
   const myNameRef = useRef('');
 
   useEffect(() => {
-    // Dynamically connect to the server's IP address on the network instead of just localhost
     const ws = new WebSocket(`ws://${window.location.hostname}:8887`);
     wsRef.current = ws;
     
@@ -42,42 +44,39 @@ export default function App() {
         setError(msg.message);
         setTimeout(() => setError(''), 3000);
       }
-      
-      else if (msg.type === 'LOBBY_UPDATE') {
-        setLobbyCount(msg.count);
+      else if (msg.type === 'PLAYERS_SYNC') {
+        setPlayersList(msg.players);
       }
-      
+      else if (msg.type === 'READY_UPDATE') {
+        setReadyPlayers(msg.readyPlayers);
+      }
       else if (msg.type === 'GAME_START') {
         setGameState('BIDDING_1');
         setHand(msg.yourHand);
         setTurn(msg.turn);
         setHighestBid(4);
         setHighestBidder('None');
+        setReadyPlayers([]);
       }
-      
       else if (msg.type === 'BID_1_UPDATE') {
         setHighestBid(msg.highestBid);
         setHighestBidder(msg.highestBidder);
         if (msg.nextTurn) setTurn(msg.nextTurn);
       }
-      
       else if (msg.type === 'PHASE_2_START') {
         setGameState('BIDDING_2');
-        setHand(msg.yourHand);
+        if (msg.yourHand) setHand(msg.yourHand);
         setTurn(msg.turn);
         setFinalTrump(msg.finalTrump);
       }
-      
       else if (msg.type === 'BID_2_UPDATE') {
         if (msg.nextTurn) setTurn(msg.nextTurn);
       }
-      
       else if (msg.type === 'GAME_READY') {
         setGameState('PLAYING');
         if (msg.yourHand) setHand(msg.yourHand);
-        setTurn(msg.turn);
+        if (msg.turn) setTurn(msg.turn);
       }
-      
       else if (msg.type === 'CARD_PLAYED') {
         setTable(prev => [...prev, { player: msg.player, symbol: msg.symbol, rank: msg.rank }]);
         const currentName = myNameRef.current;
@@ -85,36 +84,36 @@ export default function App() {
            setHand(prev => prev.filter(c => !(c.rank === msg.rank && c.symbol === msg.symbol)));
         }
       }
-      
       else if (msg.type === 'NEXT_TURN') {
         setTurn(msg.turn);
       }
-      
       else if (msg.type === 'TRICK_WINNER') {
-        const currentName = myNameRef.current;
-        if (msg.winner === currentName) setMyTricks(prev => prev + 1);
+        setTrickWinner(msg.winner);
         setTimeout(() => {
           setTable([]);
+          setTrickWinner(null);
         }, 2500);
       }
-      
       else if (msg.type === 'ROUND_OVER' || msg.type === 'GAME_OVER') {
         setGameState('LEADERBOARD');
         setScores(msg.scores);
         if (msg.type === 'GAME_OVER') setGameWinner(msg.winner);
         setHand([]);
         setTable([]);
-        setMyTricks(0);
       }
     };
 
     return () => ws.close();
-  }, []); // Empty dependency array — WebSocket is created ONCE
+  }, []);
 
   const handleJoin = (name) => {
     setMyName(name);
     myNameRef.current = name;
     wsRef.current.send(JSON.stringify({ action: 'JOIN', name }));
+  };
+
+  const handleReady = () => {
+    wsRef.current.send(JSON.stringify({ action: 'READY' }));
   };
 
   const handleBidPhase1 = (amount, selectedTrump) => {
@@ -129,19 +128,59 @@ export default function App() {
     wsRef.current.send(JSON.stringify({ action: 'PLAY_CARD', symbol: card.symbol, rank: card.rank }));
   };
 
-  const handleNextRound = () => {
-    wsRef.current.send(JSON.stringify({ action: 'NEXT_ROUND' }));
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(err => {
+        console.log("Error attempting to enable fullscreen:", err.message);
+      });
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+    }
   };
 
   return (
     <>
+      <button 
+        onClick={toggleFullscreen}
+        style={{
+          position: 'fixed',
+          bottom: '20px',
+          right: '20px',
+          background: 'rgba(0,0,0,0.5)',
+          border: '1px solid var(--glass-border)',
+          color: 'var(--text-muted)',
+          borderRadius: '50%',
+          width: '45px',
+          height: '45px',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          cursor: 'pointer',
+          zIndex: 1000
+        }}
+        title="Toggle Fullscreen"
+      >
+        ⛶
+      </button>
+
       {error && (
         <div style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', background: 'var(--accent)', padding: '10px 20px', borderRadius: '8px', zIndex: 1000, boxShadow: '0 4px 15px rgba(255,8,68,0.5)', fontWeight: 'bold' }}>
           {error}
         </div>
       )}
       
-      {gameState === 'LOBBY' && <Lobby onJoin={handleJoin} error={error} lobbyCount={lobbyCount} />}
+      {gameState === 'LOBBY' && (
+        <Lobby 
+          onJoin={handleJoin} 
+          error={error} 
+          playersList={playersList} 
+          readyPlayers={readyPlayers} 
+          onReady={handleReady} 
+          myName={myName}
+        />
+      )}
       
       {gameState === 'BIDDING_1' && (
         <Bidding 
@@ -152,6 +191,7 @@ export default function App() {
           onBid={handleBidPhase1}
           highestBid={highestBid}
           highestBidder={highestBidder}
+          playersList={playersList}
         />
       )}
       
@@ -165,6 +205,7 @@ export default function App() {
           highestBid={highestBid}
           highestBidder={highestBidder}
           finalTrump={finalTrump}
+          playersList={playersList}
         />
       )}
       
@@ -176,7 +217,8 @@ export default function App() {
           myName={myName} 
           onPlayCard={handlePlayCard}
           trump={finalTrump}
-          myTricks={myTricks}
+          playersList={playersList}
+          trickWinner={trickWinner}
         />
       )}
       
@@ -184,7 +226,9 @@ export default function App() {
         <Leaderboard 
           scores={scores} 
           gameWinner={gameWinner} 
-          onNextRound={handleNextRound} 
+          onNextRound={handleReady} 
+          readyPlayers={readyPlayers}
+          myName={myName}
         />
       )}
     </>

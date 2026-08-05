@@ -1,8 +1,8 @@
 import { motion } from 'framer-motion';
 
-export default function Leaderboard({ scores, gameWinner, onNextRound }) {
-  // Sort scores descending by totalScore
+export default function Leaderboard({ scores, gameWinner, onNextRound, readyPlayers, myName }) {
   const sortedScores = [...scores].sort((a, b) => b.totalScore - a.totalScore);
+  const isReady = readyPlayers.includes(myName);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '30px', padding: '20px', width: '100vw' }}>
@@ -10,11 +10,12 @@ export default function Leaderboard({ scores, gameWinner, onNextRound }) {
         
         {gameWinner ? (
           <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-            <h1 style={{ fontSize: '4rem', marginBottom: '10px' }}>🏆 {gameWinner} WINS! 🏆</h1>
-            <p style={{ fontSize: '1.5rem', color: 'var(--primary)' }}>Target score of 21 reached!</p>
+            <h1 style={{ color: 'gold', fontSize: '3rem', textShadow: '0 0 20px gold', margin: '0' }}>🏆</h1>
+            <h2 style={{ color: 'var(--primary)', marginTop: '10px' }}>{gameWinner} Wins The Game!</h2>
+            <p style={{ color: 'var(--text-muted)' }}>First to reach 21 points!</p>
           </div>
         ) : (
-          <h1 style={{ textAlign: 'center', marginBottom: '30px' }}>Round Complete!</h1>
+          <h2 style={{ textAlign: 'center', marginBottom: '30px', color: 'var(--primary)' }}>Round Over</h2>
         )}
 
         <div style={{ overflowX: 'auto' }}>
@@ -57,14 +58,21 @@ export default function Leaderboard({ scores, gameWinner, onNextRound }) {
           </table>
         </div>
 
-        {!gameWinner && (
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '40px' }}>
-            <button className="btn" onClick={onNextRound} style={{ fontSize: '1.2rem', padding: '15px 40px' }}>
-              Start Next Round
-            </button>
-          </div>
-        )}
-
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '40px' }}>
+          <button 
+            className="btn" 
+            onClick={onNextRound}
+            disabled={isReady}
+            style={{ 
+              background: isReady ? 'var(--secondary)' : (gameWinner ? '#4CAF50' : 'var(--primary)'),
+              padding: '15px 30px', 
+              fontSize: '1.2rem' 
+            }}
+          >
+            {isReady ? "Ready! Waiting for others..." : (gameWinner ? "Play Again" : "Ready for Next Round")}
+          </button>
+        </div>
+        
       </motion.div>
     </div>
   );
