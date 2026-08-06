@@ -8,110 +8,86 @@ export default function Playing({ hand, table, currentTurn, myName, onPlayCard, 
 
   const myIndex = playersList.findIndex(p => p.name === myName);
   
-  const getPlayerByRelativePosition = (pos) => {
+  const getSeat = (pos) => {
     if (myIndex === -1 || playersList.length < 4) return null;
-    let offset = 0;
-    if (pos === 'bottom') offset = 0;
-    if (pos === 'left') offset = 1;
-    if (pos === 'top') offset = 2;
-    if (pos === 'right') offset = 3;
-    
-    const targetIndex = (myIndex + offset) % 4;
-    return playersList[targetIndex];
+    const offsets = { bottom: 0, left: 1, top: 2, right: 3 };
+    return playersList[(myIndex + offsets[pos]) % 4];
   };
 
-  const bottomPlayer = getPlayerByRelativePosition('bottom');
-  const leftPlayer = getPlayerByRelativePosition('left');
-  const topPlayer = getPlayerByRelativePosition('top');
-  const rightPlayer = getPlayerByRelativePosition('right');
+  const seats = {
+    bottom: getSeat('bottom'),
+    left: getSeat('left'),
+    top: getSeat('top'),
+    right: getSeat('right')
+  };
 
-  let tableTransform = 'none';
-  let tableOpacity = 1;
+  // Trick winner animation — cards fly towards the winner's side
+  let trickStyle = {};
   if (trickWinner) {
-    if (trickWinner === bottomPlayer?.name) tableTransform = 'translateY(100vh)';
-    else if (trickWinner === topPlayer?.name) tableTransform = 'translateY(-100vh)';
-    else if (trickWinner === leftPlayer?.name) tableTransform = 'translateX(-100vw)';
-    else if (trickWinner === rightPlayer?.name) tableTransform = 'translateX(100vw)';
-    tableOpacity = 0;
+    const dir = { 
+      [seats.bottom?.name]: 'translateY(100vh)', 
+      [seats.top?.name]: 'translateY(-100vh)',
+      [seats.left?.name]: 'translateX(-100vw)',
+      [seats.right?.name]: 'translateX(100vw)'
+    };
+    trickStyle = { 
+      transform: dir[trickWinner] || 'none', 
+      opacity: 0, 
+      transition: 'all 1.2s cubic-bezier(0.4, 0, 0.2, 1)' 
+    };
   }
+
+  // Card offsets — each card drifts towards the player who played it
+  const getCardOffset = (playerName) => {
+    if (playerName === seats.bottom?.name) return { x: 0, y: 35 };
+    if (playerName === seats.top?.name)    return { x: 0, y: -35 };
+    if (playerName === seats.left?.name)   return { x: -35, y: 0 };
+    if (playerName === seats.right?.name)  return { x: 35, y: 0 };
+    return { x: 0, y: 0 };
+  };
 
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
 
-      {/* 4-Way Player Seats Anchored to Screen Edges */}
-      <PlayerSeat player={bottomPlayer} position="bottom" isTurn={currentTurn === bottomPlayer?.name} />
-      <PlayerSeat player={leftPlayer} position="left" isTurn={currentTurn === leftPlayer?.name} />
-      <PlayerSeat player={topPlayer} position="top" isTurn={currentTurn === topPlayer?.name} />
-      <PlayerSeat player={rightPlayer} position="right" isTurn={currentTurn === rightPlayer?.name} />
+      {/* Player Seats — pinned to edges */}
+      {Object.entries(seats).map(([pos, player]) => (
+        <PlayerSeat key={pos} player={player} position={pos} isTurn={currentTurn === player?.name} />
+      ))}
 
-      {/* Floating Color Badge */}
-      <div className="glass-panel" style={{ 
-        position: 'fixed', 
-        top: '20px', 
-        left: '20px', 
-        padding: '10px 15px', 
-        fontSize: '1.2rem', 
-        zIndex: 100,
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        width: 'fit-content'
+      {/* Color badge — top left */}
+      <div style={{ 
+        position: 'fixed', top: '12px', left: '12px', 
+        background: 'var(--badge-bg)', border: '1px solid var(--badge-border)',
+        borderRadius: '14px', padding: '6px 14px',
+        display: 'flex', alignItems: 'center', gap: '6px',
+        zIndex: 100, backdropFilter: 'blur(8px)', fontSize: '0.95rem'
       }}>
-        <strong>Color:</strong> 
-        <span style={{ color: trump === 'HEARTS' || trump === 'DIAMONDS' ? 'var(--accent)' : 'var(--text-main)', fontSize: '1.5rem' }}>
+        <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Color</span>
+        <span style={{ 
+          fontSize: '1.3rem', 
+          color: (trump === 'HEARTS' || trump === 'DIAMONDS') ? '#ef4444' : 'var(--text-main)',
+          fontWeight: 800 
+        }}>
           {symbolMap[trump]}
         </span>
       </div>
 
-      {/* Virtual Table */}
-      <div className="table-layout" style={{ flexGrow: 1, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div 
-          className="trick-center" 
-          style={{ 
-            transform: tableTransform, 
-            opacity: tableOpacity,
-            transition: trickWinner ? 'all 1s cubic-bezier(0.25, 0.1, 0.25, 1)' : 'none',
-          }}
-        >
-          <div className="glass-panel" style={{ width: '100%', height: '100%', borderRadius: '50%', border: '2px dashed var(--glass-border)', position: 'absolute' }}></div>
-          
+      {/* Center playing area */}
+      <div style={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="trick-center" style={trickStyle}>
           <AnimatePresence>
             {table.map((play, i) => {
-              // Determine which seat played this card to offset it slightly towards them
-              let cardX = 0;
-              let cardY = 0;
-              if (play.player === bottomPlayer?.name) cardY = 40;
-              else if (play.player === topPlayer?.name) cardY = -40;
-              else if (play.player === leftPlayer?.name) cardX = -40;
-              else if (play.player === rightPlayer?.name) cardX = 40;
-
+              const offset = getCardOffset(play.player);
               return (
                 <motion.div 
                   key={play.player} 
-                  initial={{ opacity: 0, scale: 0, x: cardX * 2, y: cardY * 2 }}
-                  animate={{ opacity: 1, scale: 1, rotate: (i * 15) - 20, x: cardX, y: cardY }}
-                  exit={{ opacity: 0, scale: 0 }}
-                  transition={{ type: "spring", stiffness: 200, damping: 20 }}
-                  style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: i + 10 }}
+                  initial={{ opacity: 0, scale: 0.3, x: offset.x * 3, y: offset.y * 3 }}
+                  animate={{ opacity: 1, scale: 1, rotate: (i * 10) - 15, x: offset.x, y: offset.y }}
+                  exit={{ opacity: 0, scale: 0.5 }}
+                  transition={{ type: "spring", stiffness: 250, damping: 22 }}
+                  style={{ position: 'absolute', zIndex: i + 10 }}
                 >
-                  <Card symbol={play.symbol} rank={play.rank} style={{ pointerEvents: 'none' }} />
-                  <div style={{
-                    background: 'var(--bg-gradient)', 
-                    padding: '2px 8px', 
-                    borderRadius: '8px', 
-                    fontSize: '12px', 
-                    fontWeight: 'bold',
-                    textAlign: 'center', 
-                    marginTop: '5px',
-                    boxShadow: '0 4px 10px rgba(0,0,0,0.5)',
-                    border: '1px solid var(--glass-border)',
-                    position: 'absolute',
-                    bottom: '-25px',
-                    left: '50%',
-                    transform: 'translateX(-50%)'
-                  }}>
-                    {play.player.substring(0, 8)}
-                  </div>
+                  <Card symbol={play.symbol} rank={play.rank} style={{ pointerEvents: 'none', cursor: 'default' }} />
                 </motion.div>
               );
             })}
@@ -119,8 +95,8 @@ export default function Playing({ hand, table, currentTurn, myName, onPlayCard, 
         </div>
       </div>
 
-      {/* Hand */}
-      <div style={{ paddingBottom: '10px', zIndex: 100 }}>
+      {/* Hand — flush at bottom */}
+      <div style={{ zIndex: 100 }}>
         <div className="hand-wrapper">
           <div className="hand-container">
             <AnimatePresence>

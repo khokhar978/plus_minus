@@ -5,71 +5,104 @@ export default function Leaderboard({ scores, gameWinner, onNextRound, readyPlay
   const isReady = readyPlayers.includes(myName);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '30px', padding: '20px', width: '100vw' }}>
-      <motion.div initial={{ y: -50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="glass-panel" style={{ padding: '40px', width: '90%', maxWidth: '900px' }}>
+    <div style={{ 
+      width: '100vw', height: '100vh', 
+      display: 'flex', justifyContent: 'center', alignItems: 'center',
+      padding: '20px'
+    }}>
+      <motion.div 
+        initial={{ y: 30, opacity: 0 }} 
+        animate={{ y: 0, opacity: 1 }} 
+        transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+        className="glass-panel" 
+        style={{ padding: '32px', width: '100%', maxWidth: '600px' }}
+      >
         
+        {/* Header */}
         {gameWinner ? (
-          <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-            <h1 style={{ color: 'gold', fontSize: '3rem', textShadow: '0 0 20px gold', margin: '0' }}>🏆</h1>
-            <h2 style={{ color: 'var(--primary)', marginTop: '10px' }}>{gameWinner} Wins The Game!</h2>
-            <p style={{ color: 'var(--text-muted)' }}>First to reach 21 points!</p>
+          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '8px' }}>🏆</div>
+            <h2 style={{ color: 'var(--secondary)', fontSize: '1.5rem', margin: 0 }}>{gameWinner} Wins!</h2>
+            <p style={{ color: 'var(--text-muted)', marginTop: '4px', fontSize: '0.9rem' }}>First to 21 points</p>
           </div>
         ) : (
-          <h2 style={{ textAlign: 'center', marginBottom: '30px', color: 'var(--primary)' }}>Round Over</h2>
+          <h2 style={{ textAlign: 'center', marginBottom: '24px', color: 'var(--primary)', fontSize: '1.4rem' }}>
+            Round Over
+          </h2>
         )}
 
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '1.2rem' }}>
-            <thead>
-              <tr style={{ borderBottom: '2px solid var(--glass-border)', color: 'var(--primary)' }}>
-                <th style={{ padding: '15px' }}>Player</th>
-                <th style={{ padding: '15px' }}>Bid</th>
-                <th style={{ padding: '15px' }}>Tricks Won</th>
-                <th style={{ padding: '15px' }}>Points Earned</th>
-                <th style={{ padding: '15px', textAlign: 'right' }}>Total Score</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedScores.map((s, i) => (
-                <motion.tr 
-                  key={s.player} 
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.1 }}
-                  style={{ 
-                    borderBottom: '1px solid var(--glass-border)',
-                    background: i === 0 ? 'rgba(0, 242, 254, 0.1)' : 'transparent'
-                  }}
-                >
-                  <td style={{ padding: '15px', fontWeight: 'bold' }}>
-                    {i === 0 ? '👑 ' : ''}{i + 1}. {s.player}
-                  </td>
-                  <td style={{ padding: '15px' }}>{s.bid}</td>
-                  <td style={{ padding: '15px', color: s.tricks >= s.bid ? '#4caf50' : 'white' }}>{s.tricks}</td>
-                  <td style={{ padding: '15px', color: s.pointsEarned > 0 ? '#4caf50' : 'var(--accent)', fontWeight: 'bold' }}>
-                    {s.pointsEarned > 0 ? '+' : ''}{s.pointsEarned}
-                  </td>
-                  <td style={{ padding: '15px', textAlign: 'right', fontWeight: 'bold', fontSize: '1.5rem', color: 'var(--secondary)' }}>
-                    {s.totalScore}
-                  </td>
-                </motion.tr>
-              ))}
-            </tbody>
-          </table>
+        {/* Score Cards */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
+          {sortedScores.map((s, i) => (
+            <motion.div 
+              key={s.player}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: i * 0.12 }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '12px 16px',
+                background: i === 0 ? 'rgba(251,191,36,0.1)' : 'rgba(255,255,255,0.03)',
+                borderRadius: '14px',
+                border: `1px solid ${i === 0 ? 'rgba(251,191,36,0.3)' : 'rgba(255,255,255,0.05)'}`,
+              }}
+            >
+              {/* Rank */}
+              <div style={{ 
+                width: '32px', height: '32px', borderRadius: '50%',
+                background: i === 0 ? 'var(--secondary)' : 'rgba(255,255,255,0.1)',
+                display: 'flex', justifyContent: 'center', alignItems: 'center',
+                fontWeight: 800, fontSize: '0.85rem',
+                color: i === 0 ? '#2c1810' : 'var(--text-muted)',
+                flexShrink: 0
+              }}>
+                {i === 0 ? '👑' : i + 1}
+              </div>
+
+              {/* Name */}
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: '1rem' }}>{s.player}</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                  Bid {s.bid} · Won {s.tricks}
+                </div>
+              </div>
+
+              {/* Points earned */}
+              <div style={{ 
+                fontWeight: 700, fontSize: '0.9rem',
+                color: s.pointsEarned > 0 ? '#4ade80' : '#ef4444',
+                minWidth: '40px', textAlign: 'right'
+              }}>
+                {s.pointsEarned > 0 ? '+' : ''}{s.pointsEarned}
+              </div>
+
+              {/* Total score */}
+              <div style={{ 
+                fontWeight: 800, fontSize: '1.3rem', 
+                color: 'var(--secondary)',
+                minWidth: '40px', textAlign: 'right'
+              }}>
+                {s.totalScore}
+              </div>
+            </motion.div>
+          ))}
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '40px' }}>
+        {/* Ready button */}
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
           <button 
             className="btn" 
             onClick={onNextRound}
             disabled={isReady}
             style={{ 
-              background: isReady ? 'var(--secondary)' : (gameWinner ? '#4CAF50' : 'var(--primary)'),
-              padding: '15px 30px', 
-              fontSize: '1.2rem' 
+              padding: '14px 32px', fontSize: '1.05rem',
+              ...(isReady ? { background: 'rgba(255,255,255,0.1)', color: 'var(--text-muted)', boxShadow: 'none' } : {}),
+              ...(gameWinner ? { background: 'linear-gradient(135deg, var(--secondary), #f97316)' } : {})
             }}
           >
-            {isReady ? "Ready! Waiting for others..." : (gameWinner ? "Play Again" : "Ready for Next Round")}
+            {isReady ? "✓ Ready! Waiting..." : (gameWinner ? "Play Again" : "Next Round")}
           </button>
         </div>
         
