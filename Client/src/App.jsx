@@ -7,7 +7,7 @@ import PlayerBubbles from './PlayerBubbles'
 
 export default function App() {
   const [gameState, setGameState] = useState('LOBBY');
-  const [myName, setMyName] = useState('');
+  const [myName, setMyName] = useState(() => localStorage.getItem('plusminus_name') || '');
   const [hand, setHand] = useState([]);
   const [turn, setTurn] = useState('');
   const [error, setError] = useState('');
@@ -30,7 +30,11 @@ export default function App() {
   const [gameWinner, setGameWinner] = useState(null);
 
   const wsRef = useRef(null);
-  const myNameRef = useRef('');
+  const myNameRef = useRef(myName);
+
+  useEffect(() => {
+    myNameRef.current = myName;
+  }, [myName]);
 
   useEffect(() => {
     let reconnectTimer;
@@ -141,6 +145,7 @@ export default function App() {
 }, []);
 
   const handleJoin = (name) => {
+    localStorage.setItem('plusminus_name', name);
     setMyName(name);
     myNameRef.current = name;
     wsRef.current.send(JSON.stringify({ action: 'JOIN', name }));

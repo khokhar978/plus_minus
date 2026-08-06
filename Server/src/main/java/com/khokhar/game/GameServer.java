@@ -130,45 +130,48 @@ public class GameServer extends WebSocketServer {
                     
                     if (players.containsKey(playerName)) {
                         if (connections.containsKey(playerName)) {
-                            conn.send("{\"type\":\"ERROR\",\"message\":\"Name already taken or player is already connected!\"}");
-                            return;
-                        } else {
-                            // Reconnect!
-                            connections.put(playerName, conn);
-                            logger.info("{} reconnected.", playerName);
-                            broadcastPlayersSync();
-                            
-                            // Send full state sync for reconnecting player
-                            if (gameStarted) {
-                                Player p = players.get(playerName);
-                                JsonObject stateUpdate = new JsonObject();
-                                
-                                if (bidsReceived < 4) {
-                                    stateUpdate.addProperty("type", "GAME_START");
-                                    stateUpdate.addProperty("turn", turnOrder.get(bidsReceived)); 
-                                } else if (bidsReceived < 8) {
-                                    stateUpdate.addProperty("type", "PHASE_2_START");
-                                    stateUpdate.addProperty("turn", turnOrder.get(bidsReceived - 4));
-                                    stateUpdate.addProperty("finalTrump", engine.getSpecialSymbol().toString());
-                                } else {
-                                    stateUpdate.addProperty("type", "GAME_READY");
-                                    stateUpdate.addProperty("turn", turnOrder.get(currentPlayTurnIndex));
-                                    
-                                    JsonArray trickArray = new JsonArray();
-                                    for (Map.Entry<Player, Card> entry : currentTrick.getCards().entrySet()) {
-                                        JsonObject pcObj = new JsonObject();
-                                        pcObj.addProperty("player", entry.getKey().getName());
-                                        pcObj.addProperty("symbol", entry.getValue().getSymbol().toString());
-                                        pcObj.addProperty("rank", entry.getValue().getRank().toString());
-                                        trickArray.add(pcObj);
-                                    }
-                                    stateUpdate.add("table", trickArray);
-                                }
-                                stateUpdate.add("yourHand", gson.toJsonTree(p.getHand()));
-                                conn.send(stateUpdate.toString());
+                            WebSocket oldConn = connections.get(playerName);
+                            if (oldConn != conn && oldConn.isOpen()) {
+                                conn.send("{\"type\":\"ERROR\",\"message\":\"Name already taken!\"}");
+                                return;
                             }
-                            return;
                         }
+                        
+                        // Reconnect!
+                        connections.put(playerName, conn);
+                        logger.info("{} reconnected.", playerName);
+                        broadcastPlayersSync();
+                        
+                        // Send full state sync for reconnecting player
+                        if (gameStarted) {
+                            Player p = players.get(playerName);
+                            JsonObject stateUpdate = new JsonObject();
+                            
+                            if (bidsReceived < 4) {
+                                stateUpdate.addProperty("type", "GAME_START");
+                                stateUpdate.addProperty("turn", turnOrder.get(bidsReceived)); 
+                            } else if (bidsReceived < 8) {
+                                stateUpdate.addProperty("type", "PHASE_2_START");
+                                stateUpdate.addProperty("turn", turnOrder.get(bidsReceived - 4));
+                                stateUpdate.addProperty("finalTrump", engine.getSpecialSymbol().toString());
+                            } else {
+                                stateUpdate.addProperty("type", "GAME_READY");
+                                stateUpdate.addProperty("turn", turnOrder.get(currentPlayTurnIndex));
+                                
+                                JsonArray trickArray = new JsonArray();
+                                for (Map.Entry<Player, Card> entry : currentTrick.getCards().entrySet()) {
+                                    JsonObject pcObj = new JsonObject();
+                                    pcObj.addProperty("player", entry.getKey().getName());
+                                    pcObj.addProperty("symbol", entry.getValue().getSymbol().toString());
+                                    pcObj.addProperty("rank", entry.getValue().getRank().toString());
+                                    trickArray.add(pcObj);
+                                }
+                                stateUpdate.add("table", trickArray);
+                            }
+                            stateUpdate.add("yourHand", gson.toJsonTree(p.getHand()));
+                            conn.send(stateUpdate.toString());
+                        }
+                        return;
                     }
                     
                     if (players.size() >= 4) {
@@ -183,7 +186,6 @@ public class GameServer extends WebSocketServer {
                     logger.info("{} joined the lobby.", playerName);
                     
                     broadcastPlayersSync();
-                
                 } else if (action.equals("READY")) {
                     String name = getPlayerName(conn);
                     if (name == null) return;

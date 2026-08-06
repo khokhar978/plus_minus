@@ -4,7 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Represents a Player in the game, holding their hand, bids, and current scores.
+ * Represents a Player in the game, holding their hand, bids, and current
+ * scores.
  */
 public class Player {
     private String name;
@@ -21,12 +22,25 @@ public class Player {
         this.totalScore = 0;
     }
 
-    public String getName() { return name; }
-    public List<Card> getHand() { return hand; }
+    public String getName() {
+        return name;
+    }
 
-    public void addCard(Card card) { hand.add(card); }
-    public void removeCard(Card card) { hand.remove(card); }
-    public void clearHand() { hand.clear(); }
+    public List<Card> getHand() {
+        return hand;
+    }
+
+    public void addCard(Card card) {
+        hand.add(card);
+    }
+
+    public void removeCard(Card card) {
+        hand.remove(card);
+    }
+
+    public void clearHand() {
+        hand.clear();
+    }
 
     public boolean hasCard(Card card) {
         return hand.contains(card);
@@ -34,13 +48,19 @@ public class Player {
 
     public boolean hasSymbol(Symbol symbol) {
         for (Card c : hand) {
-            if (c.getSymbol() == symbol) return true;
+            if (c.getSymbol() == symbol)
+                return true;
         }
         return false;
     }
 
-    public boolean isEmpty() { return hand.isEmpty(); }
-    public int getCardCount() { return hand.size(); }
+    public boolean isEmpty() {
+        return hand.isEmpty();
+    }
+
+    public int getCardCount() {
+        return hand.size();
+    }
 
     public Card getCard(int index) {
         if (index < 0 || index >= hand.size()) {
@@ -49,14 +69,29 @@ public class Player {
         return hand.get(index);
     }
 
-    public void setBidPoints(int bidPoints) { this.bidPoints = bidPoints; }
-    public int getBidPoints() { return bidPoints; }
+    public void setBidPoints(int bidPoints) {
+        this.bidPoints = bidPoints;
+    }
 
-    public void incrementTricksWon() { this.tricksWon++; }
-    public int getTricksWon() { return tricksWon; }
+    public int getBidPoints() {
+        return bidPoints;
+    }
 
-    public void incrementTotalScore(int value) { this.totalScore += value; }
-    public int getTotalScore() { return totalScore; }
+    public void incrementTricksWon() {
+        this.tricksWon++;
+    }
+
+    public int getTricksWon() {
+        return tricksWon;
+    }
+
+    public void incrementTotalScore(int value) {
+        this.totalScore += value;
+    }
+
+    public int getTotalScore() {
+        return totalScore;
+    }
 
     /**
      * Resets the player's round-specific stats. Total score is preserved.
