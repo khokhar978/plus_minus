@@ -1,8 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import PlayerSeat from './PlayerSeat';
 
 export default function Lobby({ onJoin, error, playersList, readyPlayers, onReady, myName }) {
   const [name, setName] = useState('');
+  const [joining, setJoining] = useState(false);
+
+  // Reset joining state if an error occurs
+  useEffect(() => {
+    if (error) setJoining(false);
+  }, [error]);
 
   const isJoined = myName !== '';
   const isLobbyFull = playersList.length === 4;
@@ -69,11 +75,16 @@ export default function Lobby({ onJoin, error, playersList, readyPlayers, onRead
               placeholder="Your name..." 
               value={name}
               onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && name && onJoin(name)}
-              disabled={isLobbyFull}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && name && !isLobbyFull && !joining) {
+                  setJoining(true);
+                  onJoin(name);
+                }
+              }}
+              disabled={isLobbyFull || joining}
               style={{ flex: 1, maxWidth: '200px' }}
             />
-            <button className="btn" onClick={() => onJoin(name)} disabled={!name || isLobbyFull}>Join</button>
+            <button className="btn" onClick={() => { setJoining(true); onJoin(name); }} disabled={!name || isLobbyFull || joining}>Join</button>
           </div>
         ) : (
           <div>

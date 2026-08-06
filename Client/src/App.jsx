@@ -33,11 +33,26 @@ export default function App() {
   const myNameRef = useRef('');
 
   useEffect(() => {
-    const ws = new WebSocket(`ws://${window.location.hostname}:8887`);
-    wsRef.current = ws;
-    
-    ws.onmessage = (event) => {
-      const msg = JSON.parse(event.data);
+    let reconnectTimer;
+    let isIntentionallyClosed = false;
+
+    const connect = () => {
+      if (wsRef.current?.readyState === WebSocket.OPEN || wsRef.current?.readyState === WebSocket.CONNECTING) {
+        return;
+      }
+      
+      const ws = new WebSocket(`ws://${window.location.hostname}:8887`);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        setError('');
+        if (myNameRef.current) {
+          ws.send(JSON.stringify({ action: 'JOIN', name: myNameRef.current }));
+        }
+      };
+      
+      ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
       console.log("Received:", msg);
       
       if (msg.type === 'ERROR') {
@@ -76,6 +91,7 @@ export default function App() {
         setGameState('PLAYING');
         if (msg.yourHand) setHand(msg.yourHand);
         if (msg.turn) setTurn(msg.turn);
+        if (msg.table) setTable(msg.table);
       }
       else if (msg.type === 'CARD_PLAYED') {
         setTable(prev => [...prev, { player: msg.player, symbol: msg.symbol, rank: msg.rank }]);
@@ -103,8 +119,26 @@ export default function App() {
       }
     };
 
-    return () => ws.close();
-  }, []);
+    ws.onclose = () => {
+      if (!isIntentionallyClosed) {
+        setError('Connection lost — reconnecting...');
+        reconnectTimer = setTimeout(connect, 2000);
+      }
+    };
+
+    ws.onerror = () => {
+      ws.close();
+    };
+  };
+
+  connect();
+
+  return () => {
+    isIntentionallyClosed = true;
+    clearTimeout(reconnectTimer);
+    if (wsRef.current) wsRef.current.close();
+  };
+}, []);
 
   const handleJoin = (name) => {
     setMyName(name);

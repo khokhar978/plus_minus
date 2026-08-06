@@ -3,6 +3,8 @@ package com.khokhar.game;
 import org.java_websocket.server.WebSocketServer;
 import org.java_websocket.WebSocket;
 import org.java_websocket.handshake.ClientHandshake;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonArray;
@@ -10,6 +12,8 @@ import java.net.InetSocketAddress;
 import java.util.*;
 
 public class GameServer extends WebSocketServer {
+    
+    private static final Logger logger = LoggerFactory.getLogger(GameServer.class);
     
     private Map<String, Player> players;
     private Map<String, WebSocket> connections;
@@ -72,9 +76,23 @@ public class GameServer extends WebSocketServer {
         return null;
     }
 
+    public int getConnectionCount() {
+        return connections.size();
+    }
+
     @Override
     public void onOpen(WebSocket conn, ClientHandshake handshake) {
-        System.out.println("New connection from: " + conn.getRemoteSocketAddress());
+        logger.info("New connection from: {}", conn.getRemoteSocketAddress());
+        
+        new Timer().schedule(new TimerTask() {
+            @Override
+            public void run() {
+                if (getPlayerName(conn) == null) {
+                    logger.warn("Closing connection from {} - no JOIN received within 10s", conn.getRemoteSocketAddress());
+                    conn.close();
+                }
+            }
+        }, 10000);
     }
 
     @Override
@@ -82,7 +100,7 @@ public class GameServer extends WebSocketServer {
         String name = getPlayerName(conn);
         if (name != null) {
             connections.remove(name);
-            System.out.println(name + " disconnected.");
+            logger.info("{} disconnected.", name);
             
             if (!gameStarted) {
                 // If game hasn't started, remove them completely to free up the slot
@@ -96,7 +114,7 @@ public class GameServer extends WebSocketServer {
 
     @Override
     public void onMessage(WebSocket conn, String message) {
-        System.out.println("Received message: " + message);
+        logger.debug("Received message: {}", message);
         
         synchronized (this) {
             try {
@@ -104,7 +122,11 @@ public class GameServer extends WebSocketServer {
                 String action = jsonMessage.get("action").getAsString();
             
                 if (action.equals("JOIN")) {
-                    String playerName = jsonMessage.get("name").getAsString();
+                    String rawName = jsonMessage.get("name").getAsString().trim();
+                    String playerName = players.keySet().stream()
+                        .filter(k -> k.equalsIgnoreCase(rawName))
+                        .findFirst()
+                        .orElse(rawName);
                     
                     if (players.containsKey(playerName)) {
                         if (connections.containsKey(playerName)) {
@@ -113,7 +135,7 @@ public class GameServer extends WebSocketServer {
                         } else {
                             // Reconnect!
                             connections.put(playerName, conn);
-                            System.out.println(playerName + " reconnected.");
+                            logger.info("{} reconnected.", playerName);
                             broadcastPlayersSync();
                             
                             // Send full state sync for reconnecting player
@@ -131,6 +153,16 @@ public class GameServer extends WebSocketServer {
                                 } else {
                                     stateUpdate.addProperty("type", "GAME_READY");
                                     stateUpdate.addProperty("turn", turnOrder.get(currentPlayTurnIndex));
+                                    
+                                    JsonArray trickArray = new JsonArray();
+                                    for (Map.Entry<Player, Card> entry : currentTrick.getCards().entrySet()) {
+                                        JsonObject pcObj = new JsonObject();
+                                        pcObj.addProperty("player", entry.getKey().getName());
+                                        pcObj.addProperty("symbol", entry.getValue().getSymbol().toString());
+                                        pcObj.addProperty("rank", entry.getValue().getRank().toString());
+                                        trickArray.add(pcObj);
+                                    }
+                                    stateUpdate.add("table", trickArray);
                                 }
                                 stateUpdate.add("yourHand", gson.toJsonTree(p.getHand()));
                                 conn.send(stateUpdate.toString());
@@ -148,7 +180,7 @@ public class GameServer extends WebSocketServer {
                     players.put(playerName, newPlayer);
                     connections.put(playerName, conn);
                     turnOrder.add(playerName);
-                    System.out.println(playerName + " joined the lobby.");
+                    logger.info("{} joined the lobby.", playerName);
                     
                     broadcastPlayersSync();
                 
@@ -166,7 +198,7 @@ public class GameServer extends WebSocketServer {
                     broadcastToAll(readyUpdate.toString());
                     
                     if (readyPlayers.size() == 4) {
-                        System.out.println("All players ready! Starting game...");
+                        logger.info("All players ready! Starting game...");
                         readyPlayers.clear(); 
                         gameStarted = true;
                         
@@ -380,19 +412,19 @@ public class GameServer extends WebSocketServer {
                 }
                 
             } catch (Exception e) {
-                System.err.println("Error parsing message: " + e.getMessage());
+                logger.error("Error parsing message: ", e);
             }
         }
     }
 
     @Override
     public void onError(WebSocket conn, Exception ex) {
-        System.err.println("Error occurred: " + ex.getMessage());
+        logger.error("WebSocket error occurred: ", ex);
     }
 
     @Override
     public void onStart() {
-        System.out.println("WebSocket Server started successfully on port: " + getPort());
+        logger.info("WebSocket Server started successfully on port: {}", getPort());
     }
 
     public static void main(String[] args) {
