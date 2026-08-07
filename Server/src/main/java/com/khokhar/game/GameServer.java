@@ -97,18 +97,20 @@ public class GameServer extends WebSocketServer {
 
     @Override
     public void onClose(WebSocket conn, int code, String reason, boolean remote) {
-        String name = getPlayerName(conn);
-        if (name != null) {
-            connections.remove(name);
-            logger.info("{} disconnected.", name);
-            
-            if (!gameStarted) {
-                // If game hasn't started, remove them completely to free up the slot
-                players.remove(name);
-                readyPlayers.remove(name);
-                turnOrder.remove(name);
+        synchronized (this) {
+            String name = getPlayerName(conn);
+            if (name != null) {
+                connections.remove(name);
+                logger.info("{} disconnected.", name);
+                
+                if (!gameStarted) {
+                    // If game hasn't started, remove them completely to free up the slot
+                    players.remove(name);
+                    readyPlayers.remove(name);
+                    turnOrder.remove(name);
+                }
+                broadcastPlayersSync();
             }
-            broadcastPlayersSync();
         }
     }
 
@@ -289,7 +291,7 @@ public class GameServer extends WebSocketServer {
                     
                     if (name.equals(currentHighestBidder)) {
                         if (bidAmount < currentHighestBid) {
-                            conn.send("{\"type\":\"ERROR\",\"message\":\"You must bid at least your Phase 1 bid (\" + currentHighestBid + \")!\"}");
+                            conn.send("{\"type\":\"ERROR\",\"message\":\"You must bid at least your Phase 1 bid (" + currentHighestBid + ")!\"}");
                             return;
                         }
                     } else {

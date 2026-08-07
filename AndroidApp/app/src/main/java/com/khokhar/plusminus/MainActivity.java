@@ -7,15 +7,18 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.graphics.Bitmap;
 import android.graphics.Color;
-import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.util.Log;
 import android.view.View;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -26,10 +29,13 @@ import com.google.zxing.WriterException;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
 
-import java.util.Locale;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.util.Collections;
 
 public class MainActivity extends Activity {
 
+    private static final String TAG = "MainActivity";
     private HostService hostService;
     private boolean isBound = false;
     private Handler handler = new Handler(Looper.getMainLooper());
@@ -49,18 +55,73 @@ public class MainActivity extends Activity {
         }
     };
 
+    private void setImmersiveMode() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            getWindow().setDecorFitsSystemWindows(false);
+            if (getWindow().getInsetsController() != null) {
+                getWindow().getInsetsController().hide(android.view.WindowInsets.Type.systemBars());
+                getWindow().getInsetsController().setSystemBarsBehavior(
+                        android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            }
+        } else {
+            getWindow().getDecorView().setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                    | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                    | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    | View.SYSTEM_UI_FLAG_FULLSCREEN);
+        }
+    }
+
+    private String getLocalIpAddress() {
+        try {
+            for (NetworkInterface intf : Collections.list(NetworkInterface.getNetworkInterfaces())) {
+                for (InetAddress addr : Collections.list(intf.getInetAddresses())) {
+                    if (!addr.isLoopbackAddress() && addr.getAddress().length == 4) { // IPv4
+                        return addr.getHostAddress();
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            Log.e(TAG, "Failed to get local IP address", ex);
+        }
+        return null;
+    }
+
+    private void loadGameInWebView(WebView webView, LinearLayout qrContainer) {
+        HostService.isGameStarted = true;
+        qrContainer.setVisibility(View.GONE);
+        webView.setVisibility(View.VISIBLE);
+        
+        WebSettings settings = webView.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                super.onReceivedError(view, request, error);
+                if (request.isForMainFrame()) {
+                    handler.postDelayed(() -> {
+                        if (isBound && hostService != null && hostService.isServerReady()) {
+                            view.loadUrl("http://localhost:8080");
+                        } else {
+                            view.reload();
+                        }
+                    }, 1000);
+                }
+            }
+        });
+
+        webView.loadUrl("http://localhost:8080");
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
-        getWindow().getDecorView().setSystemUiVisibility(
-                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                | View.SYSTEM_UI_FLAG_FULLSCREEN);
-
+        setImmersiveMode();
         setContentView(R.layout.activity_main);
 
         ImageView qrImage = findViewById(R.id.qrCodeImage);
@@ -70,28 +131,33 @@ public class MainActivity extends Activity {
         WebView webView = findViewById(R.id.gameWebView);
         LinearLayout qrContainer = findViewById(R.id.qrContainer);
 
-        WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-        int ip = wifiManager.getConnectionInfo().getIpAddress();
-        String ipAddress = String.format(Locale.getDefault(), "%d.%d.%d.%d",
-                (ip & 0xff), (ip >> 8 & 0xff), (ip >> 16 & 0xff), (ip >> 24 & 0xff));
-        
-        String url = "http://" + ipAddress + ":8080";
-        ipText.setText(url);
+        String ipAddress = getLocalIpAddress();
+        if (ipAddress == null) {
+            ipText.setText("Please connect to Wi-Fi or start a Hotspot");
+            qrImage.setVisibility(View.GONE);
+        } else {
+            String url = "http://" + ipAddress + ":8080";
+            ipText.setText(url);
+            qrImage.setVisibility(View.VISIBLE);
 
-        try {
-            QRCodeWriter writer = new QRCodeWriter();
-            BitMatrix bitMatrix = writer.encode(url, BarcodeFormat.QR_CODE, 512, 512);
-            int width = bitMatrix.getWidth();
-            int height = bitMatrix.getHeight();
-            Bitmap bmp = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565);
-            for (int x = 0; x < width; x++) {
+            try {
+                QRCodeWriter writer = new QRCodeWriter();
+                BitMatrix bitMatrix = writer.encode(url, BarcodeFormat.QR_CODE, 512, 512);
+                int width = bitMatrix.getWidth();
+                int height = bitMatrix.getHeight();
+                int[] pixels = new int[width * height];
                 for (int y = 0; y < height; y++) {
-                    bmp.setPixel(x, y, bitMatrix.get(x, y) ? Color.BLACK : Color.WHITE);
+                    int offset = y * width;
+                    for (int x = 0; x < width; x++) {
+                        pixels[offset + x] = bitMatrix.get(x, y) ? Color.BLACK : Color.WHITE;
+                    }
                 }
+                Bitmap bmp = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565);
+                bmp.setPixels(pixels, 0, width, 0, 0, width, height);
+                qrImage.setImageBitmap(bmp);
+            } catch (WriterException e) {
+                Log.e(TAG, "Failed to generate QR code", e);
             }
-            qrImage.setImageBitmap(bmp);
-        } catch (WriterException e) {
-            e.printStackTrace();
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -115,9 +181,7 @@ public class MainActivity extends Activity {
                     int count = hostService.getConnectionCount();
                     connectedText.setText("Connected: " + count + "/4");
                     
-                    if (count >= 3) {
-                        btnStart.setVisibility(View.VISIBLE);
-                    }
+                    btnStart.setVisibility(count >= 3 ? View.VISIBLE : View.GONE);
                 }
                 handler.postDelayed(this, 1000);
             }
@@ -125,23 +189,11 @@ public class MainActivity extends Activity {
         handler.post(pollRunnable);
 
         if (HostService.isGameStarted) {
-            qrContainer.setVisibility(View.GONE);
-            webView.setVisibility(View.VISIBLE);
-            WebSettings settings = webView.getSettings();
-            settings.setJavaScriptEnabled(true);
-            settings.setDomStorageEnabled(true);
-            webView.loadUrl("http://localhost:8080");
+            loadGameInWebView(webView, qrContainer);
         }
 
         btnStart.setOnClickListener(v -> {
-            HostService.isGameStarted = true;
-            qrContainer.setVisibility(View.GONE);
-            webView.setVisibility(View.VISIBLE);
-            
-            WebSettings settings = webView.getSettings();
-            settings.setJavaScriptEnabled(true);
-            settings.setDomStorageEnabled(true);
-            webView.loadUrl("http://localhost:8080");
+            loadGameInWebView(webView, qrContainer);
         });
     }
 
@@ -149,13 +201,7 @@ public class MainActivity extends Activity {
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus) {
-            getWindow().getDecorView().setSystemUiVisibility(
-                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                    | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                    | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                    | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                    | View.SYSTEM_UI_FLAG_FULLSCREEN);
+            setImmersiveMode();
         }
     }
 

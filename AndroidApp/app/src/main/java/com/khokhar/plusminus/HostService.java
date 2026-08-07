@@ -3,12 +3,14 @@ package com.khokhar.plusminus;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Binder;
 import android.os.Build;
 import android.os.IBinder;
+import android.util.Log;
 
 import com.khokhar.game.GameServer;
 import fi.iki.elonen.NanoHTTPD;
@@ -18,6 +20,9 @@ import java.io.InputStream;
 
 public class HostService extends Service {
     private static final String CHANNEL_ID = "PlusMinusServerChannel";
+    private static final String TAG = "HostService";
+    public static final String ACTION_STOP_SERVICE = "com.khokhar.plusminus.STOP_SERVICE";
+    
     private GameServer gameServer;
     private WebAppServer webServer;
     
@@ -37,21 +42,60 @@ public class HostService extends Service {
     }
 
     @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent != null && ACTION_STOP_SERVICE.equals(intent.getAction())) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                stopForeground(STOP_FOREGROUND_REMOVE);
+            } else {
+                stopForeground(true);
+            }
+            stopSelf();
+            return START_NOT_STICKY;
+        }
+        return super.onStartCommand(intent, flags, startId);
+    }
+
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        stopSelf();
+        super.onTaskRemoved(rootIntent);
+    }
+
+    @Override
     public void onCreate() {
         super.onCreate();
         createNotificationChannel();
+        
+        Intent stopIntent = new Intent(this, HostService.class);
+        stopIntent.setAction(ACTION_STOP_SERVICE);
+        PendingIntent pendingStopIntent = PendingIntent.getService(
+                this, 0, stopIntent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+
+        Intent appIntent = new Intent(this, MainActivity.class);
+        PendingIntent pendingAppIntent = PendingIntent.getActivity(
+                this, 0, appIntent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+
+        Notification.Action stopAction = new Notification.Action.Builder(
+                android.R.drawable.ic_delete, "Stop Server", pendingStopIntent).build();
+
         Notification notification;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             notification = new Notification.Builder(this, CHANNEL_ID)
                     .setContentTitle("Plus Minus Server")
                     .setContentText("Hosting the game on your local network")
                     .setSmallIcon(android.R.drawable.sym_def_app_icon)
+                    .setContentIntent(pendingAppIntent)
+                    .setOngoing(true)
+                    .addAction(stopAction)
                     .build();
         } else {
             notification = new Notification.Builder(this)
                     .setContentTitle("Plus Minus Server")
                     .setContentText("Hosting the game on your local network")
                     .setSmallIcon(android.R.drawable.sym_def_app_icon)
+                    .setContentIntent(pendingAppIntent)
+                    .setOngoing(true)
+                    .addAction(stopAction)
                     .build();
         }
         
@@ -68,7 +112,7 @@ public class HostService extends Service {
             webServer = new WebAppServer(this, 8080);
             webServer.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
         } catch (IOException e) {
-            e.printStackTrace();
+            Log.e(TAG, "Failed to start WebAppServer", e);
         }
     }
 
@@ -81,7 +125,7 @@ public class HostService extends Service {
             try {
                 gameServer.stop();
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                Log.e(TAG, "Failed to stop GameServer", e);
             }
         }
     }
@@ -89,6 +133,10 @@ public class HostService extends Service {
     public int getConnectionCount() {
         if (gameServer != null) return gameServer.getConnectionCount();
         return 0;
+    }
+
+    public boolean isServerReady() {
+        return webServer != null && webServer.isAlive();
     }
 
     private void createNotificationChannel() {

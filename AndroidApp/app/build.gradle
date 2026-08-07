@@ -31,14 +31,12 @@ android {
 }
 
 dependencies {
-    implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'com.google.android.material:material:1.10.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     
     // Server dependencies
     implementation 'org.java-websocket:Java-WebSocket:1.5.6'
     implementation 'com.google.code.gson:gson:2.10.1'
-    implementation 'org.slf4j:slf4j-simple:1.7.36'
+    implementation 'org.slf4j:slf4j-simple:2.0.9'
     
     // NanoHTTPD for serving React
     implementation 'org.nanohttpd:nanohttpd:2.3.1'
@@ -46,3 +44,21 @@ dependencies {
     // ZXing for QR Code
     implementation 'com.google.zxing:core:3.5.2'
 }
+
+tasks.register("buildReactApp", Exec) {
+    workingDir = file("../../Client")
+    
+    if (System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows')) {
+        commandLine 'cmd', '/c', 'npm install && npm run build'
+    } else {
+        commandLine 'sh', '-c', 'npm install && npm run build'
+    }
+}
+
+tasks.register("copyReactDist", Copy) {
+    dependsOn "buildReactApp"
+    from file("../../Client/dist")
+    into file("src/main/assets")
+}
+
+preBuild.dependsOn("copyReactDist")

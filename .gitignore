@@ -31,3 +31,11 @@ Thumbs.db
 
 # AI Agent memory
 .agents/
+
+# Android
+.gradle/
+**/build/
+local.properties
+*.apk
+.cxx/
+captures/
