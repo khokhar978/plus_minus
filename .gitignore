@@ -39,3 +39,4 @@ local.properties
 *.apk
 .cxx/
 captures/
+AndroidApp/app/src/main/assets/

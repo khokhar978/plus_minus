@@ -36,7 +36,7 @@ dependencies {
     // Server dependencies
     implementation 'org.java-websocket:Java-WebSocket:1.5.6'
     implementation 'com.google.code.gson:gson:2.10.1'
-    implementation 'org.slf4j:slf4j-simple:2.0.9'
+    implementation 'org.slf4j:slf4j-simple:1.7.36'
     
     // NanoHTTPD for serving React
     implementation 'org.nanohttpd:nanohttpd:2.3.1'
@@ -47,6 +47,12 @@ dependencies {
 
 tasks.register("buildReactApp", Exec) {
     workingDir = file("../../Client")
+    
+    inputs.dir(file("../../Client/src"))
+    inputs.dir(file("../../Client/public"))
+    inputs.file(file("../../Client/package.json"))
+    inputs.file(file("../../Client/vite.config.js"))
+    outputs.dir(file("../../Client/dist"))
     
     if (System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows')) {
         commandLine 'cmd', '/c', 'npm install && npm run build'
@@ -59,6 +65,8 @@ tasks.register("copyReactDist", Copy) {
     dependsOn "buildReactApp"
     from file("../../Client/dist")
     into file("src/main/assets")
+    inputs.dir(file("../../Client/dist"))
+    outputs.dir(file("src/main/assets"))
 }
 
 preBuild.dependsOn("copyReactDist")

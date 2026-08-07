@@ -7,6 +7,8 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ServiceInfo;
+import android.graphics.drawable.Icon;
 import android.os.Binder;
 import android.os.Build;
 import android.os.IBinder;
@@ -64,55 +66,70 @@ public class HostService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        createNotificationChannel();
         
-        Intent stopIntent = new Intent(this, HostService.class);
-        stopIntent.setAction(ACTION_STOP_SERVICE);
-        PendingIntent pendingStopIntent = PendingIntent.getService(
-                this, 0, stopIntent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
-
-        Intent appIntent = new Intent(this, MainActivity.class);
-        PendingIntent pendingAppIntent = PendingIntent.getActivity(
-                this, 0, appIntent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
-
-        Notification.Action stopAction = new Notification.Action.Builder(
-                android.R.drawable.ic_delete, "Stop Server", pendingStopIntent).build();
-
-        Notification notification;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            notification = new Notification.Builder(this, CHANNEL_ID)
-                    .setContentTitle("Plus Minus Server")
-                    .setContentText("Hosting the game on your local network")
-                    .setSmallIcon(android.R.drawable.sym_def_app_icon)
-                    .setContentIntent(pendingAppIntent)
-                    .setOngoing(true)
-                    .addAction(stopAction)
-                    .build();
-        } else {
-            notification = new Notification.Builder(this)
-                    .setContentTitle("Plus Minus Server")
-                    .setContentText("Hosting the game on your local network")
-                    .setSmallIcon(android.R.drawable.sym_def_app_icon)
-                    .setContentIntent(pendingAppIntent)
-                    .setOngoing(true)
-                    .addAction(stopAction)
-                    .build();
-        }
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(1, notification, 1); // 1 = ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-        } else {
-            startForeground(1, notification);
-        }
-
-        gameServer = new GameServer(8887);
-        gameServer.start();
-
         try {
-            webServer = new WebAppServer(this, 8080);
-            webServer.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
-        } catch (IOException e) {
-            Log.e(TAG, "Failed to start WebAppServer", e);
+            createNotificationChannel();
+            
+            Intent stopIntent = new Intent(this, HostService.class);
+            stopIntent.setAction(ACTION_STOP_SERVICE);
+            PendingIntent pendingStopIntent = PendingIntent.getService(
+                    this, 0, stopIntent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+            
+            Intent appIntent = new Intent(this, MainActivity.class);
+            appIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            PendingIntent pendingAppIntent = PendingIntent.getActivity(
+                    this, 0, appIntent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+
+            Notification.Builder builder;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                builder = new Notification.Builder(this, CHANNEL_ID);
+            } else {
+                builder = new Notification.Builder(this);
+            }
+
+            // Use Icon-based Action.Builder (available since API 23, minSdk is 26)
+            Notification.Action stopAction = new Notification.Action.Builder(
+                    Icon.createWithResource(this, android.R.drawable.ic_menu_close_clear_cancel),
+                    "Stop Server",
+                    pendingStopIntent
+            ).build();
+
+            Notification notification = builder
+                    .setContentTitle("Plus Minus Server")
+                    .setContentText("Hosting the game on your local network")
+                    .setSmallIcon(android.R.drawable.sym_def_app_icon)
+                    .setContentIntent(pendingAppIntent)
+                    .setOngoing(true)
+                    .addAction(stopAction)
+                    .build();
+            
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+                } else {
+                    startForeground(1, notification);
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to start foreground with dataSync, falling back", e);
+                startForeground(1, notification);
+            }
+
+            try {
+                gameServer = new GameServer(8887);
+                gameServer.start();
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to start GameServer", e);
+            }
+
+            try {
+                webServer = new WebAppServer(this, 8080);
+                webServer.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
+            } catch (IOException e) {
+                Log.e(TAG, "Failed to start WebAppServer", e);
+            }
+            
+        } catch (Exception e) {
+            Log.e(TAG, "FATAL: HostService onCreate crashed", e);
         }
     }
 
@@ -154,7 +171,7 @@ public class HostService extends Service {
     }
 
     private static class WebAppServer extends NanoHTTPD {
-        private Context context;
+        private final Context context;
 
         public WebAppServer(Context context, int port) {
             super(port);

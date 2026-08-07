@@ -60,12 +60,22 @@
             android:id="@+id/btnStartGame"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Open Game"
+            android:text="Join Game on Host"
             android:backgroundTint="#4ade80"
             android:textColor="#0a1f12"
             android:textStyle="bold"
             android:layout_marginTop="24dp"
             android:visibility="gone" />
+            
+        <Button
+            android:id="@+id/btnStopServer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Stop Server"
+            android:backgroundTint="#ef4444"
+            android:textColor="#ffffff"
+            android:textStyle="bold"
+            android:layout_marginTop="16dp" />
             
     </LinearLayout>
 
