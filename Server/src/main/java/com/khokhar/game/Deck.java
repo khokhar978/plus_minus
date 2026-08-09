@@ -40,4 +40,27 @@ public class Deck {
         }
         return cards.remove(cards.size()-1); // O(1) removal optimization
     }
+
+    /**
+     * Returns a card to the bottom of the deck.
+     */
+    public void addCard(Card card) {
+        cards.add(0, card);
+    }
+
+    /**
+     * Returns the number of cards currently in the deck.
+     */
+    public int size() {
+        return cards.size();
+    }
+
+    /**
+     * Peeks at the bottom card of the deck without removing it.
+     * @return the bottom Card, or null if deck is empty
+     */
+    public Card peekBottom() {
+        if (cards.isEmpty()) return null;
+        return cards.get(0);
+    }
 }

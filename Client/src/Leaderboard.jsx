@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 
-export default function Leaderboard({ scores, gameWinner, onNextRound, readyPlayers, myName }) {
+export default function Leaderboard({ scores, gameWinner, onNextRound, readyPlayers, myName, autoSkipped }) {
   const sortedScores = [...scores].sort((a, b) => b.totalScore - a.totalScore);
   const isReady = readyPlayers.includes(myName);
 
@@ -27,7 +27,7 @@ export default function Leaderboard({ scores, gameWinner, onNextRound, readyPlay
           </div>
         ) : (
           <h2 style={{ textAlign: 'center', marginBottom: '24px', color: 'var(--primary)', fontSize: '1.4rem' }}>
-            Round Over
+            {autoSkipped ? '⚡ Easy Round — Auto-Awarded!' : 'Round Over'}
           </h2>
         )}
 

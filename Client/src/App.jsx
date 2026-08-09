@@ -20,6 +20,8 @@ export default function App() {
   const [highestBidder, setHighestBidder] = useState('None');
   const [highestBid, setHighestBid] = useState(4);
   const [finalTrump, setFinalTrump] = useState('');
+  const [peekCard, setPeekCard] = useState(null);
+  const [dealer, setDealer] = useState(null);
   
   // Playing states
   const [table, setTable] = useState([]);
@@ -28,6 +30,7 @@ export default function App() {
   // Scoring states
   const [scores, setScores] = useState([]);
   const [gameWinner, setGameWinner] = useState(null);
+  const [autoSkipped, setAutoSkipped] = useState(false);
 
   const wsRef = useRef(null);
   const myNameRef = useRef(myName);
@@ -76,6 +79,8 @@ export default function App() {
         setHighestBid(4);
         setHighestBidder('None');
         setReadyPlayers([]);
+        setPeekCard(msg.peekCard || null);
+        setDealer(msg.dealer || null);
       }
       else if (msg.type === 'BID_1_UPDATE') {
         setHighestBid(msg.highestBid);
@@ -117,6 +122,7 @@ export default function App() {
       else if (msg.type === 'ROUND_OVER' || msg.type === 'GAME_OVER') {
         setGameState('LEADERBOARD');
         setScores(msg.scores);
+        setAutoSkipped(msg.autoSkipped || false);
         if (msg.type === 'GAME_OVER') setGameWinner(msg.winner);
         setHand([]);
         setTable([]);
@@ -230,6 +236,7 @@ export default function App() {
           highestBid={highestBid}
           highestBidder={highestBidder}
           playersList={playersList}
+          peekCard={peekCard}
         />
       )}
       
@@ -244,6 +251,7 @@ export default function App() {
           highestBidder={highestBidder}
           finalTrump={finalTrump}
           playersList={playersList}
+          peekCard={peekCard}
         />
       )}
       
@@ -267,6 +275,7 @@ export default function App() {
           onNextRound={handleReady} 
           readyPlayers={readyPlayers}
           myName={myName}
+          autoSkipped={autoSkipped}
         />
       )}
     </>

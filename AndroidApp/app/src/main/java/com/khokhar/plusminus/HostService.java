@@ -43,6 +43,10 @@ public class HostService extends Service {
         return binder;
     }
 
+    public static final String EXTRA_TARGET_SCORE = "target_score";
+
+    private boolean serversStarted = false;
+
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null && ACTION_STOP_SERVICE.equals(intent.getAction())) {
@@ -54,7 +58,17 @@ public class HostService extends Service {
             stopSelf();
             return START_NOT_STICKY;
         }
-        return super.onStartCommand(intent, flags, startId);
+
+        // Read target score and start servers on first launch
+        if (!serversStarted) {
+            int targetScore = 21;
+            if (intent != null) {
+                targetScore = intent.getIntExtra(EXTRA_TARGET_SCORE, 21);
+            }
+            startServers(targetScore);
+        }
+
+        return START_STICKY;
     }
 
     @Override
@@ -113,23 +127,27 @@ public class HostService extends Service {
                 Log.e(TAG, "Failed to start foreground with dataSync, falling back", e);
                 startForeground(1, notification);
             }
-
-            try {
-                gameServer = new GameServer(8887);
-                gameServer.start();
-            } catch (Exception e) {
-                Log.e(TAG, "Failed to start GameServer", e);
-            }
-
-            try {
-                webServer = new WebAppServer(this, 8080);
-                webServer.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
-            } catch (IOException e) {
-                Log.e(TAG, "Failed to start WebAppServer", e);
-            }
             
         } catch (Exception e) {
             Log.e(TAG, "FATAL: HostService onCreate crashed", e);
+        }
+    }
+
+    private void startServers(int targetScore) {
+        serversStarted = true;
+        try {
+            gameServer = new GameServer(8887);
+            gameServer.setTargetScore(targetScore);
+            gameServer.start();
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to start GameServer", e);
+        }
+
+        try {
+            webServer = new WebAppServer(this, 8080);
+            webServer.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
+        } catch (IOException e) {
+            Log.e(TAG, "Failed to start WebAppServer", e);
         }
     }
 

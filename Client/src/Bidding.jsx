@@ -3,7 +3,7 @@ import Card from './Card';
 import { motion, AnimatePresence } from 'framer-motion';
 import PlayerSeat from './PlayerSeat';
 
-export default function Bidding({ phase, hand, currentTurn, myName, onBid, highestBid, highestBidder, finalTrump, playersList }) {
+export default function Bidding({ phase, hand, currentTurn, myName, onBid, highestBid, highestBidder, finalTrump, playersList, peekCard }) {
   const [bidAmount, setBidAmount] = useState(phase === 1 ? highestBid + 1 : 2);
   const [trump, setTrump] = useState('SPADES');
   
@@ -78,6 +78,27 @@ export default function Bidding({ phase, hand, currentTurn, myName, onBid, highe
           }}>
             {phase === 1 ? "Set the Color" : "Make your bid"}
           </h2>
+
+          {peekCard && (
+            <div style={{
+              background: 'rgba(74, 222, 128, 0.15)',
+              border: '1px solid rgba(74, 222, 128, 0.4)',
+              borderRadius: '10px',
+              padding: '6px 14px',
+              marginBottom: '12px',
+              fontSize: '0.85rem',
+              color: '#166534',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontWeight: 700
+            }}>
+              <span>👀 Dealer's Bottom Card:</span>
+              <span style={{ fontSize: '1rem' }}>
+                {symbolMap[peekCard.symbol]} {peekCard.rank}
+              </span>
+            </div>
+          )}
           
           {phase === 1 && highestBidder !== 'None' && (
             <p style={{ color: '#6b4423', fontSize: '0.95rem', marginBottom: '12px' }}>

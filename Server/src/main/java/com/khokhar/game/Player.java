@@ -85,6 +85,10 @@ public class Player {
         return tricksWon;
     }
 
+    public void setTricksWon(int tricksWon) {
+        this.tricksWon = tricksWon;
+    }
+
     public void incrementTotalScore(int value) {
         this.totalScore += value;
     }
@@ -101,6 +105,10 @@ public class Player {
         bidPoints = 0;
         tricksWon = 0;
         // Note: totalScore is intentionally not reset here!
+    }
+
+    public void sortHand() {
+        hand.sort(java.util.Comparator.comparing(Card::getSymbol).thenComparing(Card::getRank));
     }
 
     @Override

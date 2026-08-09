@@ -28,6 +28,7 @@ public class GameServer extends WebSocketServer {
     private List<String> turnOrder;
     private int currentPlayTurnIndex;
     private Trick currentTrick;
+    private int targetScore = 21;
 
     public GameServer(int port) {
         super(new InetSocketAddress(port));
@@ -43,6 +44,10 @@ public class GameServer extends WebSocketServer {
         this.turnOrder = new ArrayList<>();
         this.currentPlayTurnIndex = 0;
         this.currentTrick = new Trick();
+    }
+
+    public void setTargetScore(int targetScore) {
+        this.targetScore = targetScore;
     }
 
     private void broadcastToAll(String text) {
@@ -151,7 +156,21 @@ public class GameServer extends WebSocketServer {
                             
                             if (bidsReceived < 4) {
                                 stateUpdate.addProperty("type", "GAME_START");
-                                stateUpdate.addProperty("turn", turnOrder.get(bidsReceived)); 
+                                stateUpdate.addProperty("turn", turnOrder.get(bidsReceived));
+                                List<String> baseList = new ArrayList<>(players.keySet());
+                                if (engine != null && engine.getDealerIndex() < baseList.size()) {
+                                    String dealerName = baseList.get(engine.getDealerIndex());
+                                    stateUpdate.addProperty("dealer", dealerName);
+                                    if (playerName.equals(dealerName)) {
+                                        Card peekCard = engine.peekBottomCard();
+                                        if (peekCard != null) {
+                                            JsonObject peekObj = new JsonObject();
+                                            peekObj.addProperty("symbol", peekCard.getSymbol().toString());
+                                            peekObj.addProperty("rank", peekCard.getRank().toString());
+                                            stateUpdate.add("peekCard", peekObj);
+                                        }
+                                    }
+                                }
                             } else if (bidsReceived < 8) {
                                 stateUpdate.addProperty("type", "PHASE_2_START");
                                 stateUpdate.addProperty("turn", turnOrder.get(bidsReceived - 4));
@@ -206,8 +225,21 @@ public class GameServer extends WebSocketServer {
                         readyPlayers.clear(); 
                         gameStarted = true;
                         
-                        engine = new GameEngine(new ArrayList<>(players.values()));
+                        if (engine == null) {
+                            // First game: create fresh engine
+                            engine = new GameEngine(new ArrayList<>(players.values()));
+                        }
                         engine.dealPhaseOne();
+                        
+                        // The first bidder is the player AFTER the dealer
+                        int dealerIdx = engine.getDealerIndex();
+                        int firstPlayerIdx = (dealerIdx + 1) % 4;
+                        // Rotate turnOrder so the first player is at index 0
+                        List<String> baseTurnOrder = new ArrayList<>(players.keySet());
+                        turnOrder.clear();
+                        for (int k = 0; k < 4; k++) {
+                            turnOrder.add(baseTurnOrder.get((firstPlayerIdx + k) % 4));
+                        }
                         
                         bidsReceived = 0;
                         currentHighestBid = 4;
@@ -215,13 +247,23 @@ public class GameServer extends WebSocketServer {
                         currentPlayTurnIndex = 0;
                         currentTrick = new Trick();
                         
+                        String dealerName = baseTurnOrder.get(dealerIdx);
+                        Card peekCard = engine.peekBottomCard();
+                        
                         for (Map.Entry<String, Player> entry : players.entrySet()) {
                             WebSocket playerConn = connections.get(entry.getKey());
                             if (playerConn != null) {
                                 JsonObject stateUpdate = new JsonObject();
                                 stateUpdate.addProperty("type", "GAME_START");
                                 stateUpdate.addProperty("turn", turnOrder.get(0)); 
+                                stateUpdate.addProperty("dealer", dealerName);
                                 stateUpdate.add("yourHand", gson.toJsonTree(entry.getValue().getHand()));
+                                if (entry.getKey().equals(dealerName) && peekCard != null) {
+                                    JsonObject peekObj = new JsonObject();
+                                    peekObj.addProperty("symbol", peekCard.getSymbol().toString());
+                                    peekObj.addProperty("rank", peekCard.getRank().toString());
+                                    stateUpdate.add("peekCard", peekObj);
+                                }
                                 playerConn.send(stateUpdate.toString());
                             }
                         }
@@ -310,13 +352,69 @@ public class GameServer extends WebSocketServer {
                     bidUpdate.addProperty("amount", bidAmount);
                     
                     if (bidsReceived == 8) {
-                        broadcastPlayersSync(); // Sync bids for everyone
-                        JsonObject stateUpdate = new JsonObject();
-                        stateUpdate.addProperty("type", "GAME_READY");
-                        stateUpdate.addProperty("turn", turnOrder.get(0)); 
-                        broadcastToAll(stateUpdate.toString());
+                        broadcastPlayersSync();
+                        
+                        // Auto-skip: if total bid <= 10, award bids and skip play
+                        int totalBid = 0;
+                        for (Player pl : players.values()) totalBid += pl.getBidPoints();
+                        
+                        if (totalBid <= 10) {
+                            logger.info("Total bid {} <= 10, auto-skipping round.", totalBid);
+                            // Return all cards from hands back to deck
+                            engine.returnAllHands();
+                            
+                            JsonArray scoresArray = new JsonArray();
+                            Player highestScorer = null;
+                            Player lowestScorer = null;
+                            
+                            for (Player player : players.values()) {
+                                int bid = player.getBidPoints();
+                                player.setTricksWon(bid);
+                                player.incrementTotalScore(bid);
+                                
+                                if (highestScorer == null || player.getTotalScore() > highestScorer.getTotalScore()) {
+                                    highestScorer = player;
+                                }
+                                if (lowestScorer == null || player.getTotalScore() < lowestScorer.getTotalScore()) {
+                                    lowestScorer = player;
+                                }
+                                
+                                JsonObject playerScore = new JsonObject();
+                                playerScore.addProperty("player", player.getName());
+                                playerScore.addProperty("bid", bid);
+                                playerScore.addProperty("tricks", bid);
+                                playerScore.addProperty("pointsEarned", bid);
+                                playerScore.addProperty("totalScore", player.getTotalScore());
+                                scoresArray.add(playerScore);
+                            }
+                            
+                            JsonObject roundUpdate = new JsonObject();
+                            if (highestScorer.getTotalScore() >= targetScore) {
+                                roundUpdate.addProperty("type", "GAME_OVER");
+                                roundUpdate.addProperty("winner", highestScorer.getName());
+                            } else {
+                                roundUpdate.addProperty("type", "ROUND_OVER");
+                            }
+                            roundUpdate.addProperty("autoSkipped", true);
+                            roundUpdate.add("scores", scoresArray);
+                            broadcastToAll(roundUpdate.toString());
+                            
+                            // Set loser as next dealer
+                            List<String> baseOrder = new ArrayList<>(players.keySet());
+                            int loserIdx = baseOrder.indexOf(lowestScorer.getName());
+                            engine.setDealerIndex(loserIdx);
+                            
+                            for (Player player : players.values()) player.reset();
+                            broadcastPlayersSync();
+                            gameStarted = false;
+                        } else {
+                            JsonObject stateUpdate = new JsonObject();
+                            stateUpdate.addProperty("type", "GAME_READY");
+                            stateUpdate.addProperty("turn", turnOrder.get(0)); 
+                            broadcastToAll(stateUpdate.toString());
+                        }
                     } else {
-                        broadcastPlayersSync(); // Sync bids for everyone incrementally
+                        broadcastPlayersSync();
                         bidUpdate.addProperty("nextTurn", turnOrder.get(bidsReceived - 4));
                         broadcastToAll(bidUpdate.toString()); 
                     }
@@ -341,6 +439,7 @@ public class GameServer extends WebSocketServer {
                     }
                     
                     p.removeCard(cardToPlay);
+                    engine.returnCard(cardToPlay); // Return card to deck immediately
                     currentTrick.playCard(p, cardToPlay, engine.getSpecialSymbol());
                     
                     JsonObject cardUpdate = new JsonObject();
@@ -388,7 +487,7 @@ public class GameServer extends WebSocketServer {
                             }
                             
                             JsonObject roundUpdate = new JsonObject();
-                            if (highestScorer.getTotalScore() >= 21) {
+                            if (highestScorer.getTotalScore() >= targetScore) {
                                 roundUpdate.addProperty("type", "GAME_OVER");
                                 roundUpdate.addProperty("winner", highestScorer.getName());
                             } else {
@@ -396,6 +495,17 @@ public class GameServer extends WebSocketServer {
                             }
                             roundUpdate.add("scores", scoresArray);
                             broadcastToAll(roundUpdate.toString());
+                            
+                            // Set loser as next dealer
+                            Player lowestScorer = null;
+                            for (Player player : players.values()) {
+                                if (lowestScorer == null || player.getTotalScore() < lowestScorer.getTotalScore()) {
+                                    lowestScorer = player;
+                                }
+                            }
+                            List<String> baseOrder = new ArrayList<>(players.keySet());
+                            int loserIdx = baseOrder.indexOf(lowestScorer.getName());
+                            engine.setDealerIndex(loserIdx);
                             
                             for (Player player : players.values()) player.reset();
                             broadcastPlayersSync();

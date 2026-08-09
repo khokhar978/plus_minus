@@ -140,7 +140,19 @@ public class MainActivity extends Activity {
 
     private void startHostService() {
         try {
+            int targetScore = 21;
+            android.widget.EditText scoreInput = findViewById(R.id.targetScoreInput);
+            if (scoreInput != null) {
+                try {
+                    targetScore = Integer.parseInt(scoreInput.getText().toString().trim());
+                    if (targetScore < 1) targetScore = 21;
+                } catch (NumberFormatException e) {
+                    targetScore = 21;
+                }
+            }
+
             Intent intent = new Intent(this, HostService.class);
+            intent.putExtra(HostService.EXTRA_TARGET_SCORE, targetScore);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(intent);
             } else {
