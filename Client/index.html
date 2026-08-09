@@ -3,8 +3,52 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- PWA & iOS fullscreen / safe-area support -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#ffffff" />
+
+    <!-- iOS Web App meta tags (work when user adds to Home Screen) -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Plus Minus" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
     <title>Plus Minus</title>
+
+    <!-- Safe-area handling for notches / home indicator -->
+    <style>
+      :root {
+        --safe-area-inset-top: env(safe-area-inset-top);
+        --safe-area-inset-right: env(safe-area-inset-right);
+        --safe-area-inset-bottom: env(safe-area-inset-bottom);
+        --safe-area-inset-left: env(safe-area-inset-left);
+      }
+
+      /* Fallbacks for older iOS implementions */
+      body {
+        padding-top: constant(safe-area-inset-top);
+        padding-top: env(safe-area-inset-top);
+        padding-right: constant(safe-area-inset-right);
+        padding-right: env(safe-area-inset-right);
+        padding-bottom: constant(safe-area-inset-bottom);
+        padding-bottom: env(safe-area-inset-bottom);
+        padding-left: constant(safe-area-inset-left);
+        padding-left: env(safe-area-inset-left);
+
+        background-color: #ffffff;
+        min-height: 100vh;
+        box-sizing: border-box;
+        margin: 0;
+      }
+
+      /* Let the app content expand under the status bar when in standalone */
+      #root {
+        min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+      }
+
+      /* If you have a top header, offset it using padding-top or margin-top that includes env(safe-area-inset-top) */
+    </style>
   </head>
   <body>
     <div id="root"></div>
