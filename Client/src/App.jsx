@@ -31,6 +31,8 @@ export default function App() {
   const [scores, setScores] = useState([]);
   const [gameWinner, setGameWinner] = useState(null);
   const [autoSkipped, setAutoSkipped] = useState(false);
+  const [turnTimer, setTurnTimer] = useState(null);
+  const [autoPlayedNotice, setAutoPlayedNotice] = useState('');
 
   const wsRef = useRef(null);
   const myNameRef = useRef(myName);
@@ -119,6 +121,14 @@ export default function App() {
           setTrickWinner(null);
         }, 2500);
       }
+      else if (msg.type === 'TIMER_START') {
+        setTurnTimer({ player: msg.player, duration: msg.duration, startTime: Date.now() });
+      }
+      else if (msg.type === 'AUTO_PLAYED') {
+        const text = msg.player === myNameRef.current ? "Time's up! Auto-played for you." : `Time's up! Auto-played for ${msg.player}.`;
+        setAutoPlayedNotice(text);
+        setTimeout(() => setAutoPlayedNotice(''), 3000);
+      }
       else if (msg.type === 'ROUND_OVER' || msg.type === 'GAME_OVER') {
         setGameState('LEADERBOARD');
         setScores(msg.scores);
@@ -126,6 +136,7 @@ export default function App() {
         if (msg.type === 'GAME_OVER') setGameWinner(msg.winner);
         setHand([]);
         setTable([]);
+        setTurnTimer(null);
       }
     };
 
@@ -226,6 +237,24 @@ export default function App() {
         />
       )}
       
+      {autoPlayedNotice && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: 'rgba(239, 68, 68, 0.9)',
+          color: '#ffffff',
+          padding: '10px 20px',
+          borderRadius: '12px',
+          fontWeight: 'bold',
+          zIndex: 2000,
+          boxShadow: '0 4px 15px rgba(0,0,0,0.3)'
+        }}>
+          ⏱️ {autoPlayedNotice}
+        </div>
+      )}
+
       {gameState === 'BIDDING_1' && (
         <Bidding 
           phase={1}
@@ -237,6 +266,7 @@ export default function App() {
           highestBidder={highestBidder}
           playersList={playersList}
           peekCard={peekCard}
+          turnTimer={turnTimer}
         />
       )}
       
@@ -252,6 +282,7 @@ export default function App() {
           finalTrump={finalTrump}
           playersList={playersList}
           peekCard={peekCard}
+          turnTimer={turnTimer}
         />
       )}
       
@@ -265,6 +296,7 @@ export default function App() {
           trump={finalTrump}
           playersList={playersList}
           trickWinner={trickWinner}
+          turnTimer={turnTimer}
         />
       )}
       

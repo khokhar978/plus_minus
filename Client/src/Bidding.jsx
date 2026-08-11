@@ -3,7 +3,7 @@ import Card from './Card';
 import { motion, AnimatePresence } from 'framer-motion';
 import PlayerSeat from './PlayerSeat';
 
-export default function Bidding({ phase, hand, currentTurn, myName, onBid, highestBid, highestBidder, finalTrump, playersList, peekCard }) {
+export default function Bidding({ phase, hand, currentTurn, myName, onBid, highestBid, highestBidder, finalTrump, playersList, peekCard, turnTimer }) {
   const [bidAmount, setBidAmount] = useState(phase === 1 ? highestBid + 1 : 2);
   const [trump, setTrump] = useState('SPADES');
   
@@ -49,7 +49,7 @@ export default function Bidding({ phase, hand, currentTurn, myName, onBid, highe
       
       {/* Player Seats */}
       {Object.entries(seats).map(([pos, player]) => (
-        <PlayerSeat key={pos} player={player} position={pos} isTurn={currentTurn === player?.name} />
+        <PlayerSeat key={pos} player={player} position={pos} isTurn={currentTurn === player?.name} turnTimer={turnTimer} />
       ))}
 
       {/* Central Bidding Modal */}

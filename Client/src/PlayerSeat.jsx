@@ -1,6 +1,25 @@
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 
-export default function PlayerSeat({ player, position, isTurn }) {
+export default function PlayerSeat({ player, position, isTurn, turnTimer }) {
+  const [timeLeft, setTimeLeft] = useState(15);
+
+  useEffect(() => {
+    if (!isTurn || !turnTimer || turnTimer.player !== player?.name) {
+      return;
+    }
+
+    const updateTimer = () => {
+      const elapsed = Date.now() - turnTimer.startTime;
+      const remaining = Math.max(0, Math.ceil((turnTimer.duration - elapsed) / 1000));
+      setTimeLeft(remaining);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 500);
+    return () => clearInterval(interval);
+  }, [isTurn, turnTimer, player?.name]);
+
   if (!player) return null;
 
   const isConnected = player.connected;
@@ -58,6 +77,16 @@ export default function PlayerSeat({ player, position, isTurn }) {
         <div className="player-info">
           <span className="player-name">
             {isMe ? 'You' : player.name.substring(0, 8)}
+            {isTurn && (
+              <span style={{
+                marginLeft: '6px',
+                fontSize: '0.75rem',
+                color: timeLeft <= 5 ? '#ef4444' : 'var(--primary)',
+                fontWeight: 'bold'
+              }}>
+                ⏱️{timeLeft}s
+              </span>
+            )}
           </span>
           <div className="player-stats">
             <span>{player.tricks}/{player.bid}</span>

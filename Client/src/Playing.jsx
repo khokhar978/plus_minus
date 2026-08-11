@@ -2,7 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Card from './Card';
 import PlayerSeat from './PlayerSeat';
 
-export default function Playing({ hand, table, currentTurn, myName, onPlayCard, trump, playersList, trickWinner }) {
+export default function Playing({ hand, table, currentTurn, myName, onPlayCard, trump, playersList, trickWinner, turnTimer }) {
   const isMyTurn = currentTurn === myName;
   const symbolMap = { SPADES: '♠', HEARTS: '♥', DIAMONDS: '♦', CLUBS: '♣' };
 
@@ -51,7 +51,7 @@ export default function Playing({ hand, table, currentTurn, myName, onPlayCard, 
 
       {/* Player Seats — pinned to edges */}
       {Object.entries(seats).map(([pos, player]) => (
-        <PlayerSeat key={pos} player={player} position={pos} isTurn={currentTurn === player?.name} />
+        <PlayerSeat key={pos} player={player} position={pos} isTurn={currentTurn === player?.name} turnTimer={turnTimer} />
       ))}
 
       {/* Color badge — top left */}

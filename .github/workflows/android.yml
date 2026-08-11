@@ -24,6 +24,11 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
+    - name: Run Server Tests
+      run: |
+        cd Server
+        mvn test
+
     - name: Build APK
       run: |
         cd AndroidApp
