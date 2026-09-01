@@ -1,10 +1,41 @@
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Card from './Card';
 import PlayerSeat from './PlayerSeat';
+import { playCardSound, playTrickWinSound, vibrate } from './sounds';
 
 export default function Playing({ hand, table, currentTurn, myName, onPlayCard, trump, playersList, trickWinner, turnTimer }) {
   const isMyTurn = currentTurn === myName;
   const symbolMap = { SPADES: '♠', HEARTS: '♥', DIAMONDS: '♦', CLUBS: '♣' };
+  const prevTableLen = useRef(table.length);
+  const [sparkles, setSparkles] = useState([]);
+
+  // Play card sound when a new card appears on the table
+  useEffect(() => {
+    if (table.length > prevTableLen.current) {
+      playCardSound();
+      vibrate(15);
+    }
+    prevTableLen.current = table.length;
+  }, [table.length]);
+
+  // Sparkle effect on trick winner
+  useEffect(() => {
+    if (trickWinner) {
+      playTrickWinSound();
+      // Generate sparkle particles
+      const newSparkles = Array.from({ length: 12 }, (_, i) => ({
+        id: Date.now() + i,
+        x: Math.random() * 200 - 100,
+        y: Math.random() * 200 - 100,
+        color: ['#fbbf24', '#4ade80', '#f97316', '#60a5fa', '#f472b6'][Math.floor(Math.random() * 5)],
+        delay: Math.random() * 0.3
+      }));
+      setSparkles(newSparkles);
+      const timer = setTimeout(() => setSparkles([]), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [trickWinner]);
 
   const myIndex = playersList.findIndex(p => p.name === myName);
   
@@ -55,13 +86,17 @@ export default function Playing({ hand, table, currentTurn, myName, onPlayCard, 
       ))}
 
       {/* Color badge — top left */}
-      <div style={{ 
-        position: 'fixed', top: '12px', left: '12px', 
-        background: 'var(--badge-bg)', border: '1px solid var(--badge-border)',
-        borderRadius: '14px', padding: '6px 14px',
-        display: 'flex', alignItems: 'center', gap: '6px',
-        zIndex: 100, backdropFilter: 'blur(8px)', fontSize: '0.95rem'
-      }}>
+      <motion.div 
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        style={{ 
+          position: 'fixed', top: '12px', left: '12px', 
+          background: 'var(--badge-bg)', border: '1px solid var(--badge-border)',
+          borderRadius: '14px', padding: '6px 14px',
+          display: 'flex', alignItems: 'center', gap: '6px',
+          zIndex: 100, backdropFilter: 'blur(8px)', fontSize: '0.95rem'
+        }}
+      >
         <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Color</span>
         <span style={{ 
           fontSize: '1.3rem', 
@@ -70,7 +105,7 @@ export default function Playing({ hand, table, currentTurn, myName, onPlayCard, 
         }}>
           {symbolMap[trump]}
         </span>
-      </div>
+      </motion.div>
 
       {/* Center playing area */}
       <div style={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -92,11 +127,56 @@ export default function Playing({ hand, table, currentTurn, myName, onPlayCard, 
               );
             })}
           </AnimatePresence>
+
+          {/* Sparkle particles on trick win */}
+          {sparkles.length > 0 && (
+            <div className="sparkle-container" style={{ position: 'absolute', top: '50%', left: '50%' }}>
+              {sparkles.map(s => (
+                <div 
+                  key={s.id}
+                  className="sparkle"
+                  style={{
+                    background: s.color,
+                    left: `${s.x}px`,
+                    top: `${s.y}px`,
+                    animationDelay: `${s.delay}s`,
+                    boxShadow: `0 0 6px ${s.color}`
+                  }}
+                />
+              ))}
+            </div>
+          )}
         </div>
+
+        {/* Trick winner name overlay */}
+        <AnimatePresence>
+          {trickWinner && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.5 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+              style={{
+                position: 'absolute',
+                background: 'rgba(20, 12, 5, 0.9)',
+                border: '1px solid var(--secondary)',
+                borderRadius: '16px',
+                padding: '10px 24px',
+                zIndex: 300,
+                backdropFilter: 'blur(8px)',
+                boxShadow: '0 0 20px rgba(251, 191, 36, 0.3)'
+              }}
+            >
+              <span style={{ color: 'var(--secondary)', fontWeight: 800, fontSize: '1.1rem' }}>
+                🏆 {trickWinner} wins!
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
-      {/* Hand — flush at bottom */}
-      <div style={{ zIndex: 100 }}>
+      {/* Hand — flush at bottom with your-turn glow */}
+      <div style={{ zIndex: 100 }} className={isMyTurn ? 'hand-your-turn' : ''}>
         <div className="hand-wrapper">
           <div className="hand-container">
             <AnimatePresence>

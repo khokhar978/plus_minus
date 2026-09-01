@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Card from './Card';
 import { motion, AnimatePresence } from 'framer-motion';
 import PlayerSeat from './PlayerSeat';
+import { playBidSound, playButtonSound } from './sounds';
 
 export default function Bidding({ phase, hand, currentTurn, myName, onBid, highestBid, highestBidder, finalTrump, playersList, peekCard, turnTimer }) {
   const [bidAmount, setBidAmount] = useState(phase === 1 ? highestBid + 1 : 2);
@@ -22,10 +23,12 @@ export default function Bidding({ phase, hand, currentTurn, myName, onBid, highe
   }, [highestBid, phase, minBid]);
 
   const handlePhase1Bid = (amount) => {
+    playBidSound();
     onBid(amount, trump);
   };
 
   const handlePhase2Bid = () => {
+    playBidSound();
     onBid(Math.max(bidAmount, minBid));
   };
 
@@ -66,8 +69,11 @@ export default function Bidding({ phase, hand, currentTurn, myName, onBid, highe
             width: '85%',
             maxWidth: '440px',
             color: '#3d2c1a',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.5)',
-            border: '1px solid rgba(160, 120, 60, 0.3)'
+            boxShadow: isMyTurn 
+              ? '0 20px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.5), 0 0 30px 5px rgba(251, 191, 36, 0.2)' 
+              : '0 20px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.5)',
+            border: isMyTurn ? '2px solid rgba(251, 191, 36, 0.5)' : '1px solid rgba(160, 120, 60, 0.3)',
+            transition: 'box-shadow 0.4s ease, border 0.4s ease'
           }}
         >
           <h2 style={{ 
@@ -80,30 +86,39 @@ export default function Bidding({ phase, hand, currentTurn, myName, onBid, highe
           </h2>
 
           {peekCard && (
-            <div style={{
-              background: 'rgba(74, 222, 128, 0.15)',
-              border: '1px solid rgba(74, 222, 128, 0.4)',
-              borderRadius: '10px',
-              padding: '6px 14px',
-              marginBottom: '12px',
-              fontSize: '0.85rem',
-              color: '#166534',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontWeight: 700
-            }}>
+            <motion.div 
+              initial={{ opacity: 0, y: -5 }}
+              animate={{ opacity: 1, y: 0 }}
+              style={{
+                background: 'rgba(74, 222, 128, 0.15)',
+                border: '1px solid rgba(74, 222, 128, 0.4)',
+                borderRadius: '10px',
+                padding: '6px 14px',
+                marginBottom: '12px',
+                fontSize: '0.85rem',
+                color: '#166534',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontWeight: 700
+              }}
+            >
               <span>👀 Dealer's Bottom Card:</span>
               <span style={{ fontSize: '1rem' }}>
                 {symbolMap[peekCard.symbol]} {peekCard.rank}
               </span>
-            </div>
+            </motion.div>
           )}
           
           {phase === 1 && highestBidder !== 'None' && (
-            <p style={{ color: '#6b4423', fontSize: '0.95rem', marginBottom: '12px' }}>
+            <motion.p 
+              key={`${highestBidder}-${highestBid}`}
+              initial={{ scale: 1.1 }}
+              animate={{ scale: 1 }}
+              style={{ color: '#6b4423', fontSize: '0.95rem', marginBottom: '12px' }}
+            >
               Highest: <strong>{highestBid}</strong> by <strong>{highestBidder}</strong>
-            </p>
+            </motion.p>
           )}
           
           {phase === 2 && (
@@ -152,7 +167,7 @@ export default function Bidding({ phase, hand, currentTurn, myName, onBid, highe
                     Change
                   </button>
                   <button 
-                    onClick={() => handlePhase1Bid(0)} disabled={!isMyTurn}
+                    onClick={() => { playButtonSound(); handlePhase1Bid(0); }} disabled={!isMyTurn}
                     style={{ 
                       background: 'rgba(60,40,20,0.15)', border: '1px solid rgba(160,120,60,0.3)',
                       borderRadius: '12px', padding: '10px 20px', color: '#6b4423',

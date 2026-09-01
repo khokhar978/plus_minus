@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import Lobby from './Lobby'
 import Bidding from './Bidding'
 import Playing from './Playing'
 import Leaderboard from './Leaderboard'
 import PlayerBubbles from './PlayerBubbles'
+import { unlockAudio, toggleMute, isMuted, playYourTurnSound, playDealSound, playErrorSound, vibrate } from './sounds'
 
 export default function App() {
   const [gameState, setGameState] = useState('LOBBY');
@@ -33,9 +35,11 @@ export default function App() {
   const [autoSkipped, setAutoSkipped] = useState(false);
   const [turnTimer, setTurnTimer] = useState(null);
   const [autoPlayedNotice, setAutoPlayedNotice] = useState('');
+  const [soundMuted, setSoundMuted] = useState(isMuted());
 
   const wsRef = useRef(null);
   const myNameRef = useRef(myName);
+  const trickGenRef = useRef(0);
 
   useEffect(() => {
     myNameRef.current = myName;
@@ -50,7 +54,8 @@ export default function App() {
         return;
       }
       
-      const ws = new WebSocket(`ws://${window.location.hostname}:8887`);
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -66,6 +71,7 @@ export default function App() {
       
       if (msg.type === 'ERROR') {
         setError(msg.message);
+        playErrorSound();
         setTimeout(() => setError(''), 3000);
       }
       else if (msg.type === 'PLAYERS_SYNC') {
@@ -83,6 +89,7 @@ export default function App() {
         setReadyPlayers([]);
         setPeekCard(msg.peekCard || null);
         setDealer(msg.dealer || null);
+        playDealSound();
       }
       else if (msg.type === 'BID_1_UPDATE') {
         setHighestBid(msg.highestBid);
@@ -105,6 +112,7 @@ export default function App() {
         if (msg.table) setTable(msg.table);
       }
       else if (msg.type === 'CARD_PLAYED') {
+        trickGenRef.current++;
         setTable(prev => [...prev, { player: msg.player, symbol: msg.symbol, rank: msg.rank }]);
         const currentName = myNameRef.current;
         if (msg.player === currentName) {
@@ -113,11 +121,16 @@ export default function App() {
       }
       else if (msg.type === 'NEXT_TURN') {
         setTurn(msg.turn);
+        if (msg.turn === myNameRef.current) {
+          playYourTurnSound();
+          vibrate(40);
+        }
       }
       else if (msg.type === 'TRICK_WINNER') {
         setTrickWinner(msg.winner);
+        const gen = trickGenRef.current;
         setTimeout(() => {
-          setTable([]);
+          if (trickGenRef.current === gen) setTable([]);
           setTrickWinner(null);
         }, 2500);
       }
@@ -162,6 +175,7 @@ export default function App() {
 }, []);
 
   const handleJoin = (name) => {
+    unlockAudio();
     setMyName(name);
     myNameRef.current = name;
     wsRef.current.send(JSON.stringify({ action: 'JOIN', name }));
@@ -195,8 +209,24 @@ export default function App() {
     }
   };
 
+  const handleToggleMute = () => {
+    unlockAudio();
+    const newMuted = toggleMute();
+    setSoundMuted(newMuted);
+  };
+
   return (
     <>
+      {/* Mute toggle */}
+      <button 
+        className="mute-btn"
+        onClick={handleToggleMute}
+        title={soundMuted ? 'Unmute' : 'Mute'}
+      >
+        {soundMuted ? '🔇' : '🔊'}
+      </button>
+
+      {/* Fullscreen toggle */}
       <button 
         onClick={toggleFullscreen}
         style={{
@@ -204,27 +234,37 @@ export default function App() {
           bottom: '20px',
           right: '20px',
           background: 'rgba(0,0,0,0.5)',
-          border: '1px solid var(--glass-border)',
+          border: '1px solid var(--badge-border)',
           color: 'var(--text-muted)',
           borderRadius: '50%',
-          width: '45px',
-          height: '45px',
+          width: '40px',
+          height: '40px',
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
           cursor: 'pointer',
-          zIndex: 1000
+          zIndex: 1000,
+          backdropFilter: 'blur(8px)',
+          fontSize: '1.1rem',
+          transition: 'all 0.2s ease'
         }}
         title="Toggle Fullscreen"
       >
         ⛶
       </button>
 
-      {error && (
-        <div style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', background: 'var(--accent)', padding: '10px 20px', borderRadius: '8px', zIndex: 1000, boxShadow: '0 4px 15px rgba(255,8,68,0.5)', fontWeight: 'bold' }}>
-          {error}
-        </div>
-      )}
+      <AnimatePresence>
+        {error && (
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', background: 'var(--accent)', padding: '10px 20px', borderRadius: '12px', zIndex: 1000, boxShadow: '0 4px 15px rgba(255,8,68,0.5)', fontWeight: 'bold' }}
+          >
+            {error}
+          </motion.div>
+        )}
+      </AnimatePresence>
       
       {gameState === 'LOBBY' && (
         <Lobby 

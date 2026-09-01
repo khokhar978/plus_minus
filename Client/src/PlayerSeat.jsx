@@ -1,11 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
+import { playTickSound } from './sounds';
 
 export default function PlayerSeat({ player, position, isTurn, turnTimer }) {
   const [timeLeft, setTimeLeft] = useState(15);
+  const lastTickRef = useRef(-1);
 
   useEffect(() => {
     if (!isTurn || !turnTimer || turnTimer.player !== player?.name) {
+      lastTickRef.current = -1;
       return;
     }
 
@@ -13,6 +16,12 @@ export default function PlayerSeat({ player, position, isTurn, turnTimer }) {
       const elapsed = Date.now() - turnTimer.startTime;
       const remaining = Math.max(0, Math.ceil((turnTimer.duration - elapsed) / 1000));
       setTimeLeft(remaining);
+
+      // Play tick sound when ≤5 seconds and this is a new second
+      if (remaining <= 5 && remaining > 0 && remaining !== lastTickRef.current) {
+        lastTickRef.current = remaining;
+        playTickSound();
+      }
     };
 
     updateTimer();
@@ -51,6 +60,12 @@ export default function PlayerSeat({ player, position, isTurn, turnTimer }) {
     !isConnected ? 'dc' : (isMe ? 'me' : 'other')
   ].filter(Boolean).join(' ');
 
+  // Calculate ring progress for countdown
+  const timerDuration = turnTimer?.duration || 15000;
+  const progress = isTurn && turnTimer ? Math.max(0, timeLeft * 1000 / timerDuration) : 1;
+  const circumference = 88; // matches stroke-dasharray in CSS
+  const dashOffset = circumference * (1 - progress);
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.8, x: motionXY.x, y: motionXY.y }}
@@ -71,8 +86,23 @@ export default function PlayerSeat({ player, position, isTurn, turnTimer }) {
       }}
     >
       <div className={badgeClass}>
-        <div className={avatarClass}>
+        <div className={avatarClass} style={{ position: 'relative' }}>
           {initial}
+          {/* SVG Countdown Ring */}
+          {isTurn && turnTimer && (
+            <svg className="timer-ring-svg" viewBox="0 0 32 32">
+              <circle
+                className={`timer-ring-circle ${timeLeft <= 5 ? 'warning' : ''}`}
+                cx="16"
+                cy="16"
+                r="14"
+                style={{
+                  strokeDashoffset: dashOffset,
+                  transition: 'stroke-dashoffset 0.5s linear, stroke 0.3s ease'
+                }}
+              />
+            </svg>
+          )}
         </div>
         <div className="player-info">
           <span className="player-name">

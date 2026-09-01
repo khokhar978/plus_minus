@@ -1,8 +1,23 @@
+import { useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
+import { playRoundOverSound, playGameWonSound, playButtonSound } from './sounds';
 
 export default function Leaderboard({ scores, gameWinner, onNextRound, readyPlayers, myName, autoSkipped }) {
   const sortedScores = [...scores].sort((a, b) => b.totalScore - a.totalScore);
   const isReady = readyPlayers.includes(myName);
+  const soundPlayedRef = useRef(false);
+
+  // Play sound on mount
+  useEffect(() => {
+    if (!soundPlayedRef.current) {
+      soundPlayedRef.current = true;
+      if (gameWinner) {
+        playGameWonSound();
+      } else {
+        playRoundOverSound();
+      }
+    }
+  }, [gameWinner]);
 
   return (
     <div style={{ 
@@ -21,14 +36,49 @@ export default function Leaderboard({ scores, gameWinner, onNextRound, readyPlay
         {/* Header */}
         {gameWinner ? (
           <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <div style={{ fontSize: '3rem', marginBottom: '8px' }}>🏆</div>
-            <h2 style={{ color: 'var(--secondary)', fontSize: '1.5rem', margin: 0 }}>{gameWinner} Wins!</h2>
+            <motion.div 
+              initial={{ scale: 0, rotate: -180 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: 'spring', stiffness: 200, damping: 12, delay: 0.2 }}
+              style={{ fontSize: '3rem', marginBottom: '8px' }}
+            >
+              🏆
+            </motion.div>
+            <motion.h2 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              style={{ color: 'var(--secondary)', fontSize: '1.5rem', margin: 0 }}
+            >
+              {gameWinner} Wins!
+            </motion.h2>
             <p style={{ color: 'var(--text-muted)', marginTop: '4px', fontSize: '0.9rem' }}>First to 21 points</p>
+
+            {/* Confetti */}
+            <div style={{ position: 'relative', height: 0, overflow: 'visible' }}>
+              {Array.from({ length: 20 }, (_, i) => (
+                <div
+                  key={i}
+                  className="confetti-piece"
+                  style={{
+                    left: `${Math.random() * 100}%`,
+                    top: '-20px',
+                    background: ['#fbbf24', '#4ade80', '#ef4444', '#60a5fa', '#f472b6', '#a78bfa'][i % 6],
+                    animationDelay: `${Math.random() * 0.5}s`,
+                    animationDuration: `${1 + Math.random() * 0.8}s`
+                  }}
+                />
+              ))}
+            </div>
           </div>
         ) : (
-          <h2 style={{ textAlign: 'center', marginBottom: '24px', color: 'var(--primary)', fontSize: '1.4rem' }}>
+          <motion.h2 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            style={{ textAlign: 'center', marginBottom: '24px', color: 'var(--primary)', fontSize: '1.4rem' }}
+          >
             {autoSkipped ? '⚡ Easy Round — Auto-Awarded!' : 'Round Over'}
-          </h2>
+          </motion.h2>
         )}
 
         {/* Score Cards */}
@@ -50,16 +100,21 @@ export default function Leaderboard({ scores, gameWinner, onNextRound, readyPlay
               }}
             >
               {/* Rank */}
-              <div style={{ 
-                width: '32px', height: '32px', borderRadius: '50%',
-                background: i === 0 ? 'var(--secondary)' : 'rgba(255,255,255,0.1)',
-                display: 'flex', justifyContent: 'center', alignItems: 'center',
-                fontWeight: 800, fontSize: '0.85rem',
-                color: i === 0 ? '#2c1810' : 'var(--text-muted)',
-                flexShrink: 0
-              }}>
+              <motion.div 
+                initial={i === 0 ? { scale: 0 } : undefined}
+                animate={i === 0 ? { scale: 1 } : undefined}
+                transition={i === 0 ? { type: 'spring', delay: 0.3 } : undefined}
+                style={{ 
+                  width: '32px', height: '32px', borderRadius: '50%',
+                  background: i === 0 ? 'var(--secondary)' : 'rgba(255,255,255,0.1)',
+                  display: 'flex', justifyContent: 'center', alignItems: 'center',
+                  fontWeight: 800, fontSize: '0.85rem',
+                  color: i === 0 ? '#2c1810' : 'var(--text-muted)',
+                  flexShrink: 0
+                }}
+              >
                 {i === 0 ? '👑' : i + 1}
-              </div>
+              </motion.div>
 
               {/* Name */}
               <div style={{ flex: 1 }}>
@@ -70,32 +125,46 @@ export default function Leaderboard({ scores, gameWinner, onNextRound, readyPlay
               </div>
 
               {/* Points earned */}
-              <div style={{ 
-                fontWeight: 700, fontSize: '0.9rem',
-                color: s.pointsEarned > 0 ? '#4ade80' : '#ef4444',
-                minWidth: '40px', textAlign: 'right'
-              }}>
+              <motion.div 
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: i * 0.12 + 0.2 }}
+                style={{ 
+                  fontWeight: 700, fontSize: '0.9rem',
+                  color: s.pointsEarned > 0 ? '#4ade80' : '#ef4444',
+                  minWidth: '40px', textAlign: 'right'
+                }}
+              >
                 {s.pointsEarned > 0 ? '+' : ''}{s.pointsEarned}
-              </div>
+              </motion.div>
 
               {/* Total score */}
-              <div style={{ 
-                fontWeight: 800, fontSize: '1.3rem', 
-                color: 'var(--secondary)',
-                minWidth: '40px', textAlign: 'right'
-              }}>
+              <motion.div 
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: i * 0.12 + 0.3 }}
+                style={{ 
+                  fontWeight: 800, fontSize: '1.3rem', 
+                  color: 'var(--secondary)',
+                  minWidth: '40px', textAlign: 'right'
+                }}
+              >
                 {s.totalScore}
-              </div>
+              </motion.div>
             </motion.div>
           ))}
         </div>
 
         {/* Ready button */}
         <div style={{ display: 'flex', justifyContent: 'center' }}>
-          <button 
+          <motion.button 
             className="btn" 
-            onClick={onNextRound}
+            onClick={() => { playButtonSound(); onNextRound(); }}
             disabled={isReady}
+            whileTap={{ scale: 0.95 }}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
             style={{ 
               padding: '14px 32px', fontSize: '1.05rem',
               ...(isReady ? { background: 'rgba(255,255,255,0.1)', color: 'var(--text-muted)', boxShadow: 'none' } : {}),
@@ -103,7 +172,7 @@ export default function Leaderboard({ scores, gameWinner, onNextRound, readyPlay
             }}
           >
             {isReady ? "✓ Ready! Waiting..." : (gameWinner ? "Play Again" : "Next Round")}
-          </button>
+          </motion.button>
         </div>
         
       </motion.div>
