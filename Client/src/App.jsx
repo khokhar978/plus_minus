@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import RoomSelect from './RoomSelect'
 import Lobby from './Lobby'
 import Bidding from './Bidding'
 import Playing from './Playing'
@@ -8,7 +9,8 @@ import PlayerBubbles from './PlayerBubbles'
 import { unlockAudio, toggleMute, isMuted, playYourTurnSound, playDealSound, playErrorSound, vibrate } from './sounds'
 
 export default function App() {
-  const [gameState, setGameState] = useState('LOBBY');
+  const [gameState, setGameState] = useState('ROOM_SELECT');
+  const [roomCode, setRoomCode] = useState('');
   const [myName, setMyName] = useState('');
   const [hand, setHand] = useState([]);
   const [turn, setTurn] = useState('');
@@ -39,6 +41,7 @@ export default function App() {
 
   const wsRef = useRef(null);
   const myNameRef = useRef(myName);
+  const roomCodeRef = useRef('');
   const trickGenRef = useRef(0);
 
   useEffect(() => {
@@ -60,8 +63,14 @@ export default function App() {
 
       ws.onopen = () => {
         setError('');
-        if (myNameRef.current) {
-          ws.send(JSON.stringify({ action: 'JOIN', name: myNameRef.current }));
+        // On reconnect: re-join the room first, then re-send JOIN with name
+        if (roomCodeRef.current) {
+          ws.send(JSON.stringify({ action: 'JOIN_ROOM', code: roomCodeRef.current }));
+          if (myNameRef.current) {
+            setTimeout(() => {
+              ws.send(JSON.stringify({ action: 'JOIN', name: myNameRef.current }));
+            }, 100);
+          }
         }
       };
       
@@ -73,6 +82,21 @@ export default function App() {
         setError(msg.message);
         playErrorSound();
         setTimeout(() => setError(''), 3000);
+      }
+      else if (msg.type === 'ROOM_CREATED') {
+        setRoomCode(msg.roomCode);
+        roomCodeRef.current = msg.roomCode;
+        setGameState('LOBBY');
+      }
+      else if (msg.type === 'ROOM_JOINED') {
+        setRoomCode(msg.roomCode);
+        roomCodeRef.current = msg.roomCode;
+        setGameState('LOBBY');
+      }
+      else if (msg.type === 'ROOM_ERROR') {
+        setError(msg.message);
+        playErrorSound();
+        setTimeout(() => setError(''), 4000);
       }
       else if (msg.type === 'PLAYERS_SYNC') {
         setPlayersList(msg.players);
@@ -174,6 +198,14 @@ export default function App() {
   };
 }, []);
 
+  const handleRoomReady = (action, code) => {
+    if (action === 'CREATE_ROOM') {
+      wsRef.current.send(JSON.stringify({ action: 'CREATE_ROOM' }));
+    } else {
+      wsRef.current.send(JSON.stringify({ action: 'JOIN_ROOM', code }));
+    }
+  };
+
   const handleJoin = (name) => {
     unlockAudio();
     setMyName(name);
@@ -266,6 +298,10 @@ export default function App() {
         )}
       </AnimatePresence>
       
+      {gameState === 'ROOM_SELECT' && (
+        <RoomSelect onRoomReady={handleRoomReady} error={error} />
+      )}
+
       {gameState === 'LOBBY' && (
         <Lobby 
           onJoin={handleJoin} 
@@ -274,6 +310,7 @@ export default function App() {
           readyPlayers={readyPlayers} 
           onReady={handleReady} 
           myName={myName}
+          roomCode={roomCode}
         />
       )}
       

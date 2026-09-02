@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import PlayerSeat from './PlayerSeat';
 import { playJoinSound, playButtonSound } from './sounds';
 
-export default function Lobby({ onJoin, error, playersList, readyPlayers, onReady, myName }) {
+export default function Lobby({ onJoin, error, playersList, readyPlayers, onReady, myName, roomCode }) {
   const [name, setName] = useState('');
   const [joining, setJoining] = useState(false);
   const prevCountRef = useRef(playersList.length);
@@ -75,6 +75,20 @@ export default function Lobby({ onJoin, error, playersList, readyPlayers, onRead
           </div>
           <h1>Plus Minus</h1>
         </div>
+
+        {/* Room code badge */}
+        {roomCode && (
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: '8px',
+            background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.3)',
+            borderRadius: '12px', padding: '6px 16px', marginBottom: '8px'
+          }}>
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Room</span>
+            <span style={{
+              color: 'var(--secondary)', fontSize: '1.4rem', fontWeight: 800, letterSpacing: '6px'
+            }}>{roomCode}</span>
+          </div>
+        )}
 
         <p style={{ marginBottom: '20px', color: 'var(--text-muted)', fontSize: '1rem' }}>
           {!isJoined
