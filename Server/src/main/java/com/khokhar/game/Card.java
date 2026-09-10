@@ -32,4 +32,9 @@ public class Card {
         Card card = (Card) obj;
         return symbol == card.symbol && rank == card.rank;
     }
+
+    @Override
+    public int hashCode() {
+        return 31 * (symbol != null ? symbol.hashCode() : 0) + (rank != null ? rank.hashCode() : 0);
+    }
 }

@@ -41,8 +41,8 @@ public class MessageRouter {
             return;
         }
 
-        if (!msg.has("action")) {
-            conn.send("{\"type\":\"ERROR\",\"message\":\"Missing action field.\"}");
+        if (!msg.has("action") || !msg.get("action").isJsonPrimitive()) {
+            conn.send("{\"type\":\"ERROR\",\"message\":\"Missing or invalid action field.\"}");
             return;
         }
 

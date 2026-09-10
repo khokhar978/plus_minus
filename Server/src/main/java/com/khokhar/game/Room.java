@@ -401,7 +401,7 @@ public class Room {
 
     public void handleBidPhase1(WebSocket conn, int bidAmount, Symbol trump) {
         String name = getPlayerName(conn);
-        if (name == null) return;
+        if (name == null || !gameStarted) return;
 
         if (!name.equals(turnOrder.get(bidsReceived))) {
             conn.send("{\"type\":\"ERROR\",\"message\":\"It is not your turn to bid!\"}");
@@ -418,7 +418,7 @@ public class Room {
 
     public void handleBidPhase2(WebSocket conn, int bidAmount) {
         String name = getPlayerName(conn);
-        if (name == null) return;
+        if (name == null || !gameStarted) return;
 
         if (!name.equals(turnOrder.get(bidsReceived - 4))) {
             conn.send("{\"type\":\"ERROR\",\"message\":\"It is not your turn to bid!\"}");
@@ -440,7 +440,7 @@ public class Room {
 
     public void handlePlayCard(WebSocket conn, Symbol symbol, Rank rank) {
         String name = getPlayerName(conn);
-        if (name == null) return;
+        if (name == null || !gameStarted) return;
 
         Player p = players.get(name);
         if (!name.equals(turnOrder.get(currentPlayTurnIndex))) {

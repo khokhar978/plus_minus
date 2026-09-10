@@ -2,171 +2,254 @@
 setlocal enabledelayedexpansion
 title PlusMinus Launcher
 
-echo ============================================================
-echo                     PlusMinus Game Server
-echo ============================================================
-echo   Public URL:    https://game.khokhar.in.net
-echo   Local UI:      http://localhost:7000
-echo   WebSocket:     ws://localhost:8887
-echo ============================================================
+cls
+echo.
+echo  ============================================================
+echo       PlusMinus Game Server - Starting Up
+echo  ============================================================
+echo   Public URL:  https://game.khokhar.in.net
+echo   Local URL:   http://localhost:7000
+echo  ============================================================
 echo.
 
+:: Always run from the folder this bat file is in
 cd /d "%~dp0"
 
-:: ------------------------------------------------------------
-:: 1. Requirements Check
-:: ------------------------------------------------------------
-echo [1/5] Checking requirements...
+:: ============================================================
+:: STEP 1 — Requirements Check
+:: ============================================================
+echo [Step 1/5]  Checking requirements...
+echo.
 
-:: Check Java
+:: Check Java runtime
 java -version >nul 2>&1
-if %errorlevel% neq 0 (
+if errorlevel 1 (
+    echo  [ERROR] Java is NOT installed or not in your PATH.
     echo.
-    echo [ERROR] Java is not installed or not in PATH!
-    echo Please download and install JDK 17 or higher from:
-    echo   https://adoptium.net/
+    echo  Please install JDK 17 or higher from:
+    echo    https://adoptium.net/
     echo.
-    pause
-    exit /b 1
+    echo  During installation, make sure to tick:
+    echo    "Set JAVA_HOME variable" and "Add to PATH"
+    echo.
+    goto :fatal_error
 )
 
-:: Check javac (JDK compiler)
+:: Check Java compiler  (JDK vs JRE)
 javac -version >nul 2>&1
-if %errorlevel% neq 0 (
+if errorlevel 1 (
+    echo  [ERROR] "javac" not found — you have a JRE but need a JDK.
     echo.
-    echo [ERROR] javac was not found! You have JRE installed, but you need a JDK.
-    echo Please download and install JDK 17 or higher from:
-    echo   https://adoptium.net/
+    echo  Please install JDK 17 or higher from:
+    echo    https://adoptium.net/
     echo.
-    pause
-    exit /b 1
+    goto :fatal_error
 )
 
 :: Check Node.js
 node -v >nul 2>&1
-if %errorlevel% neq 0 (
+if errorlevel 1 (
+    echo  [ERROR] Node.js is NOT installed or not in your PATH.
     echo.
-    echo [ERROR] Node.js is not installed or not in PATH!
-    echo Please download and install Node.js (v18 or higher) from:
-    echo   https://nodejs.org/
+    echo  Please install Node.js v18 or higher from:
+    echo    https://nodejs.org/
     echo.
-    pause
-    exit /b 1
+    goto :fatal_error
 )
 
-:: Check Cloudflared
+:: Check npm (should come with Node.js but verify)
+call npm -v >nul 2>&1
+if errorlevel 1 (
+    echo  [ERROR] npm is NOT found.
+    echo  Reinstall Node.js from https://nodejs.org/
+    echo.
+    goto :fatal_error
+)
+
+:: Check cloudflared — search local folder first, then system locations
 set "CLOUDFLARED_CMD="
-where cloudflared >nul 2>&1
-if %errorlevel% equ 0 (
-    set "CLOUDFLARED_CMD=cloudflared"
-) else if exist "%~dp0cloudflared.exe" (
+
+if exist "%~dp0cloudflared.exe" (
     set "CLOUDFLARED_CMD=%~dp0cloudflared.exe"
-) else if exist "%USERPROFILE%\Downloads\cloudflared.exe" (
+    goto :cloudflared_found
+)
+
+where cloudflared >nul 2>&1
+if not errorlevel 1 (
+    set "CLOUDFLARED_CMD=cloudflared"
+    goto :cloudflared_found
+)
+
+if exist "%USERPROFILE%\Downloads\cloudflared.exe" (
     set "CLOUDFLARED_CMD=%USERPROFILE%\Downloads\cloudflared.exe"
-) else if exist "%ProgramFiles%\cloudflared\cloudflared.exe" (
+    goto :cloudflared_found
+)
+
+if exist "%ProgramFiles(x86)%\cloudflared\cloudflared.exe" (
+    set "CLOUDFLARED_CMD=%ProgramFiles(x86)%\cloudflared\cloudflared.exe"
+    goto :cloudflared_found
+)
+
+if exist "%ProgramFiles%\cloudflared\cloudflared.exe" (
     set "CLOUDFLARED_CMD=%ProgramFiles%\cloudflared\cloudflared.exe"
-) else (
-    echo.
-    echo [ERROR] cloudflared was not found!
-    echo Please run setup-tunnel.bat first to set up your tunnel and cloudflared.
-    echo Or download cloudflared.exe and put it in this folder.
-    echo.
-    pause
-    exit /b 1
+    goto :cloudflared_found
 )
 
-echo [OK] Requirements verified.
+:: cloudflared not found
+echo  [ERROR] cloudflared was NOT found on this PC.
+echo.
+echo  Install it using ONE of these methods:
+echo.
+echo  Option A - Using Windows Package Manager (easiest):
+echo    Open a new PowerShell window and run:
+echo      winget install --id Cloudflare.cloudflared
+echo    Then close and re-open this window.
+echo.
+echo  Option B - Manual download:
+echo    Download "cloudflared-windows-amd64.exe" from:
+echo      https://github.com/cloudflare/cloudflared/releases/latest
+echo    Rename it to "cloudflared.exe" and place it in this folder:
+echo      %~dp0
+echo.
+echo  After installing, run setup-tunnel.bat if you have not yet.
+echo.
+goto :fatal_error
+
+:cloudflared_found
+echo  [OK] Java (JDK)  ...... found
+echo  [OK] Node.js / npm .... found
+echo  [OK] cloudflared ...... found at: !CLOUDFLARED_CMD!
 echo.
 
-:: ------------------------------------------------------------
-:: 2. Port Cleanup (Clear stale processes on 8887 and 7000)
-:: ------------------------------------------------------------
-echo [2/5] Cleaning up existing ports (8887, 7000)...
+:: Check if tunnel credentials exist (has setup-tunnel.bat been run?)
+if not exist "%USERPROFILE%\.cloudflared" (
+    echo  [WARNING] No cloudflared credentials found at %USERPROFILE%\.cloudflared
+    echo  It looks like you have NOT run setup-tunnel.bat yet.
+    echo  Please run setup-tunnel.bat first, then re-run start.bat.
+    echo.
+    goto :fatal_error
+)
+
+:: ============================================================
+:: STEP 2 — Clean up stale processes on ports 8887 and 7000
+:: ============================================================
+echo [Step 2/5]  Cleaning up old processes on ports 8887 and 7000...
 call :cleanup_ports
+echo  [OK] Ports cleared.
 echo.
 
-:: ------------------------------------------------------------
-:: 3. Compile Java Backend
-:: ------------------------------------------------------------
-echo [3/5] Compiling Java backend...
-if not exist "Server\target\classes" mkdir "Server\target\classes"
+:: ============================================================
+:: STEP 3 — Compile Java Backend
+:: ============================================================
+echo [Step 3/5]  Compiling Java backend...
 
-javac -cp "Server\lib\*" -d Server\target\classes Server\src\main\java\com\khokhar\game\*.java
-if %errorlevel% neq 0 (
+if not exist "Server\lib\Java-WebSocket-1.5.6.jar" (
+    echo  [ERROR] Server\lib\ folder is missing required JAR files.
+    echo  The Server\lib folder must be present with the JAR dependencies.
+    echo  Make sure you copied the full PlusMinus folder.
     echo.
-    echo [ERROR] Java compilation failed! Check your code and try again.
-    pause
-    exit /b 1
+    goto :fatal_error
 )
-echo [OK] Java backend compiled successfully.
+
+if not exist "Server\target\classes" (
+    mkdir "Server\target\classes" 2>nul
+)
+
+javac -encoding UTF-8 -cp "Server\lib\*" -d "Server\target\classes" "Server\src\main\java\com\khokhar\game\*.java"
+if errorlevel 1 (
+    echo.
+    echo  [ERROR] Java compilation FAILED.
+    echo  Check that all .java files are present in Server\src\main\java\com\khokhar\game\
+    echo.
+    goto :fatal_error
+)
+echo  [OK] Java backend compiled.
 echo.
 
-:: ------------------------------------------------------------
-:: 4. Install Frontend Dependencies (if needed)
-:: ------------------------------------------------------------
-echo [4/5] Checking React frontend dependencies...
+:: ============================================================
+:: STEP 4 — Install frontend npm packages (first time only)
+:: ============================================================
+echo [Step 4/5]  Checking frontend packages...
 if not exist "Client\node_modules" (
-    echo [INFO] First-time setup: Installing npm packages...
-    cd Client
+    echo  [INFO] First-time run: Installing npm packages for the React client.
+    echo  This may take 1-2 minutes on first run, please wait...
+    echo.
+    cd /d "%~dp0Client"
     call npm install
-    cd ..
-    if %errorlevel% neq 0 (
-        echo [ERROR] npm install failed!
-        pause
-        exit /b 1
+    if errorlevel 1 (
+        cd /d "%~dp0"
+        echo.
+        echo  [ERROR] npm install FAILED. Check your internet connection and try again.
+        echo.
+        goto :fatal_error
     )
+    cd /d "%~dp0"
 )
-echo [OK] Frontend ready.
+echo  [OK] Frontend packages ready.
 echo.
 
-:: ------------------------------------------------------------
-:: 5. Launch Servers & Tunnel
-:: ------------------------------------------------------------
-echo [5/5] Starting services...
+:: ============================================================
+:: STEP 5 — Launch both servers in separate minimized windows
+:: ============================================================
+echo [Step 5/5]  Starting game servers...
 
-:: Launch Java GameServer (port 8887) in minimized window
-echo   - Starting Java Server on port 8887...
-start "PlusMinus - Java Server (Port 8887)" /min cmd /c "cd /d "%~dp0Server" && java -cp "target\classes;lib\*" com.khokhar.game.GameServer"
+echo  - Launching Java Server (port 8887)...
+start "PlusMinus Java Server" /min "%~dp0_server_runner.bat"
 
-:: Launch Vite Dev Server (port 7000) in minimized window
-echo   - Starting React Dev Server on port 7000...
-start "PlusMinus - Client (Port 7000)" /min cmd /c "cd /d "%~dp0Client" && npm run dev"
+echo  - Launching React Client (port 7000)...
+start "PlusMinus React Client" /min "%~dp0_client_runner.bat"
 
-:: Wait 3 seconds for local servers to bind
-timeout /t 3 /nobreak >nul
+:: Wait for servers to bind before connecting the tunnel
+echo.
+echo  Waiting 5 seconds for servers to start...
+ping 127.0.0.1 -n 6 >nul
 
 echo.
-echo ============================================================
-echo                   ALL SYSTEMS GO!
-echo ============================================================
-echo   Website:    https://game.khokhar.in.net
-echo   Local:      http://localhost:7000
+echo  ============================================================
+echo             ALL SYSTEMS GO!  Game is live at:
 echo.
-echo   Press Ctrl+C in this window at any time to STOP the game.
-echo ============================================================
+echo      https://game.khokhar.in.net
+echo      http://localhost:7000  (local)
 echo.
-echo Connecting Cloudflare Tunnel to https://game.khokhar.in.net ...
+echo    Keep this window open. Press Ctrl+C to STOP everything.
+echo    Two minimized windows run the Java server and React client.
+echo  ============================================================
+echo.
+echo  Connecting Cloudflare Tunnel (press Ctrl+C to disconnect)...
 echo.
 
-:: Run Cloudflare Tunnel in foreground
+:: Run cloudflared in the FOREGROUND — this window keeps the game alive
 "!CLOUDFLARED_CMD!" tunnel --protocol http2 run --url http://localhost:7000 game-tunnel
 
-:: When tunnel stops, shut down backend and frontend
+:: Reaches here only when tunnel is stopped (Ctrl+C or error)
 echo.
-echo Tunnel stopped. Shutting down game servers...
+echo  Tunnel disconnected. Shutting down game servers...
 call :cleanup_ports
-echo [OK] All PlusMinus services stopped.
+echo  [OK] All PlusMinus services stopped.
+echo.
 pause
 exit /b 0
 
-:: ------------------------------------------------------------
+
+:: ============================================================
 :: Subroutines
-:: ------------------------------------------------------------
+:: ============================================================
+
 :cleanup_ports
-for /f "tokens=5" %%a in ('netstat -aon 2^>nul ^| findstr ":8887 " ^| findstr "LISTENING"') do (
-    taskkill /f /pid %%a >nul 2>&1
+:: Kill anything on port 8887 (Java server)
+for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":8887"') do (
+    if not "%%a"=="" taskkill /f /pid %%a >nul 2>&1
 )
-for /f "tokens=5" %%a in ('netstat -aon 2^>nul ^| findstr ":7000 " ^| findstr "LISTENING"') do (
-    taskkill /f /pid %%a >nul 2>&1
+:: Kill anything on port 7000 (React client)
+for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":7000"') do (
+    if not "%%a"=="" taskkill /f /pid %%a >nul 2>&1
 )
-goto :eof
+exit /b 0
+
+:fatal_error
+echo  ============================================================
+echo   Startup failed. Please fix the issue above and try again.
+echo  ============================================================
+echo.
+pause
+exit /b 1

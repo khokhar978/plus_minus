@@ -76,7 +76,6 @@ export default function App() {
       
       ws.onmessage = (event) => {
         const msg = JSON.parse(event.data);
-      console.log("Received:", msg);
       
       if (msg.type === 'ERROR') {
         setError(msg.message);

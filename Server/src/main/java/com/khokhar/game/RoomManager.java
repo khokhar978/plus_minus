@@ -124,7 +124,9 @@ public class RoomManager {
         Room room = rooms.get(roomCode);
         if (room == null) return;
 
-        room.handleDisconnect(conn);
+        synchronized (room) {
+            room.handleDisconnect(conn);
+        }
 
         // Grace period only starts when the room becomes COMPLETELY empty
         if (room.isEmpty()) {
