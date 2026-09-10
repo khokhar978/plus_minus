@@ -217,6 +217,10 @@ export default function App() {
     wsRef.current.send(JSON.stringify({ action: 'READY' }));
   };
 
+  const handleStartWithBots = () => {
+    wsRef.current.send(JSON.stringify({ action: 'START_WITH_BOTS' }));
+  };
+
   const handleBidPhase1 = (amount, selectedTrump) => {
     wsRef.current.send(JSON.stringify({ action: 'BID_PHASE_1', amount, trump: selectedTrump }));
   };
@@ -311,6 +315,7 @@ export default function App() {
           onReady={handleReady} 
           myName={myName}
           roomCode={roomCode}
+          onStartWithBots={handleStartWithBots}
         />
       )}
       

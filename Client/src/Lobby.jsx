@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import PlayerSeat from './PlayerSeat';
 import { playJoinSound, playButtonSound } from './sounds';
 
-export default function Lobby({ onJoin, error, playersList, readyPlayers, onReady, myName, roomCode }) {
+export default function Lobby({ onJoin, error, playersList, readyPlayers, onReady, myName, roomCode, onStartWithBots }) {
   const [name, setName] = useState('');
   const [joining, setJoining] = useState(false);
   const prevCountRef = useRef(playersList.length);
@@ -24,6 +24,8 @@ export default function Lobby({ onJoin, error, playersList, readyPlayers, onRead
   const isJoined = myName !== '';
   const isLobbyFull = playersList.length === 4;
   const isReady = readyPlayers.includes(myName);
+  // First player in the list is the creator
+  const isCreator = playersList.length > 0 && playersList[0].name === myName;
 
   // Use the same seat mapping as other components
   const myIndex = playersList.findIndex(p => p.name === myName);
@@ -156,8 +158,8 @@ export default function Lobby({ onJoin, error, playersList, readyPlayers, onRead
             <button className="btn" onClick={() => { setJoining(true); playButtonSound(); onJoin(name); }} disabled={!name || isLobbyFull || joining}>Join</button>
           </motion.div>
         ) : (
-          <div>
-            {isLobbyFull && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center' }}>
+            {isLobbyFull ? (
               <motion.button
                 className="btn"
                 onClick={() => { playButtonSound(); onReady(); }}
@@ -172,6 +174,25 @@ export default function Lobby({ onJoin, error, playersList, readyPlayers, onRead
               >
                 {isReady ? "✓ Ready! Waiting..." : "I'm Ready!"}
               </motion.button>
+            ) : (
+              <>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>
+                  Waiting for players... ({playersList.length}/4)
+                </p>
+                {isCreator && (
+                  <motion.button
+                    className="btn btn-secondary"
+                    onClick={() => { playButtonSound(); onStartWithBots(); }}
+                    whileTap={{ scale: 0.95 }}
+                    style={{ padding: '12px 24px', fontSize: '0.95rem' }}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                  >
+                    🤖 Start with Bots ({4 - playersList.length} bot{4 - playersList.length !== 1 ? 's' : ''})
+                  </motion.button>
+                )}
+              </>
             )}
           </div>
         )}

@@ -179,6 +179,7 @@ body::after {
 .player-avatar.me { background: var(--secondary); }
 .player-avatar.other { background: var(--primary); }
 .player-avatar.dc { background: #666; }
+.player-avatar.bot { background: #334155; color: #fff; font-size: 1.1rem; }
 
 .player-info {
   display: flex;

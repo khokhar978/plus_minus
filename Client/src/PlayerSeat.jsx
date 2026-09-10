@@ -33,7 +33,8 @@ export default function PlayerSeat({ player, position, isTurn, turnTimer }) {
 
   const isConnected = player.connected;
   const isMe = position === 'bottom';
-  const initial = player.name.charAt(0).toUpperCase();
+  const isBot = player.isBot;
+  const initial = isBot ? '🤖' : player.name.charAt(0).toUpperCase();
 
   // Fixed positions pinned to screen edges
   const positionStyles = {
@@ -57,7 +58,7 @@ export default function PlayerSeat({ player, position, isTurn, turnTimer }) {
 
   const avatarClass = [
     'player-avatar',
-    !isConnected ? 'dc' : (isMe ? 'me' : 'other')
+    isBot ? 'bot' : (!isConnected ? 'dc' : (isMe ? 'me' : 'other'))
   ].filter(Boolean).join(' ');
 
   // Calculate ring progress for countdown
@@ -88,8 +89,8 @@ export default function PlayerSeat({ player, position, isTurn, turnTimer }) {
       <div className={badgeClass}>
         <div className={avatarClass} style={{ position: 'relative' }}>
           {initial}
-          {/* SVG Countdown Ring */}
-          {isTurn && turnTimer && (
+          {/* SVG Countdown Ring — only for human players */}
+          {isTurn && turnTimer && !isBot && (
             <svg className="timer-ring-svg" viewBox="0 0 32 32">
               <circle
                 className={`timer-ring-circle ${timeLeft <= 5 ? 'warning' : ''}`}
@@ -107,7 +108,8 @@ export default function PlayerSeat({ player, position, isTurn, turnTimer }) {
         <div className="player-info">
           <span className="player-name">
             {isMe ? 'You' : player.name.substring(0, 8)}
-            {isTurn && (
+            {isBot && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginLeft: '4px' }}>🤖</span>}
+            {isTurn && !isBot && (
               <span style={{
                 marginLeft: '6px',
                 fontSize: '0.75rem',

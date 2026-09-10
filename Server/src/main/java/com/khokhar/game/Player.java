@@ -22,6 +22,9 @@ public class Player {
         this.totalScore = 0;
     }
 
+    /** Returns true if this player is controlled by the server (a bot). */
+    public boolean isBot() { return false; }
+
     public String getName() {
         return name;
     }

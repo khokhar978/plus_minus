@@ -112,6 +112,10 @@ public class MessageRouter {
                         room.handleReady(conn);
                         break;
 
+                    case "START_WITH_BOTS":
+                        room.handleStartWithBots(conn);
+                        break;
+
                     case "BID_PHASE_1": {
                         int bidAmount = getIntField(msg, "amount", 0);
                         Symbol trump = Symbol.SPADES;

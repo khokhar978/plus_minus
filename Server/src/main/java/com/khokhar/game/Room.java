@@ -21,7 +21,11 @@ public class Room {
 
     private static final Logger logger = LoggerFactory.getLogger(Room.class);
     private static final int TURN_TIMEOUT_MS = 30000;
+    private static final int BOT_BID_DELAY_MS  = 1500;  // delay before bot bids (UX)
+    private static final int BOT_PLAY_DELAY_MS = 2000;  // delay before bot plays a card
+    private static final int TRICK_CLEAR_DELAY_MS = 3000; // wait after trick winner before next turn
     private static final int TARGET_SCORE = 21;
+    private static final String[] BOT_NAMES = {"Bot-1", "Bot-2", "Bot-3"};
 
     private final String roomCode;
     private final Gson gson;
@@ -32,6 +36,7 @@ public class Room {
     private final Map<String, WebSocket> connections; // name → WebSocket
     private final Set<String> readyPlayers;
     private boolean gameStarted;
+    private String creatorName; // first human to join — only they can start with bots
 
     // ── Bidding state ────────────────────────────────────────────────────────
     private GameEngine engine;
@@ -98,7 +103,8 @@ public class Room {
             Player p = players.get(name);
             JsonObject pObj = new JsonObject();
             pObj.addProperty("name", name);
-            pObj.addProperty("connected", connections.containsKey(name));
+            pObj.addProperty("connected", p.isBot() || connections.containsKey(name));
+            pObj.addProperty("isBot", p.isBot());
             pObj.addProperty("bid", p.getBidPoints());
             pObj.addProperty("tricks", p.getTricksWon());
             pObj.addProperty("totalScore", p.getTotalScore());
@@ -118,7 +124,13 @@ public class Room {
     }
 
     private void startTurnTimer(String currentPlayer) {
-        // Broadcast timer start to all clients
+        Player p = players.get(currentPlayer);
+        if (p != null && p.isBot()) {
+            // Bots don't use the countdown timer — schedule their action directly
+            scheduleBotTurnIfNeeded(currentPlayer);
+            return;
+        }
+        // Broadcast timer start to all clients (human turn only)
         JsonObject timerMsg = new JsonObject();
         timerMsg.addProperty("type", "TIMER_START");
         timerMsg.addProperty("player", currentPlayer);
@@ -131,6 +143,61 @@ public class Room {
                 handleTurnTimeout(player);
             }
         });
+    }
+
+    /** Schedules a bot action after a delay so humans can follow the game. */
+    private void scheduleBotTurnIfNeeded(String botName) {
+        timerManager.cancel(); // no countdown for bots
+        // Choose delay based on game phase: bidding is faster, card play is slower
+        int delay = (bidsReceived < 8) ? BOT_BID_DELAY_MS : BOT_PLAY_DELAY_MS;
+        new Timer("bot-" + botName, true).schedule(new TimerTask() {
+            @Override
+            public void run() {
+                synchronized (Room.this) {
+                    if (!gameStarted) return;
+                    executeBotTurn(botName);
+                }
+            }
+        }, delay);
+    }
+
+    /** Executes the appropriate bot action based on current game phase. */
+    private void executeBotTurn(String botName) {
+        Player bot = players.get(botName);
+        if (bot == null || !bot.isBot()) return;
+
+        if (bidsReceived < 4) {
+            int[] decision = BotStrategy.decideBidPhase1(bot, currentHighestBid);
+            processBidPhase1(botName, decision[0], Symbol.values()[decision[1]]);
+        } else if (bidsReceived < 8) {
+            int bid = BotStrategy.decideBidPhase2(bot, engine.getSpecialSymbol(),
+                    currentHighestBidder, currentHighestBid);
+            processBidPhase2(botName, bid);
+        } else {
+            Card card = AutoPlayHelper.selectAutoPlayCard(bot, engine.getSpecialSymbol(), currentTrick);
+            processPlayCard(botName, card);
+        }
+    }
+
+    /**
+     * Starts the next turn after a trick has been won.
+     * Adds a delay so the frontend can show the trick winner animation
+     * and clear the table before the next card arrives.
+     */
+    private void startNextTurnAfterTrick(String nextPlayer) {
+        new Timer("trick-clear", true).schedule(new TimerTask() {
+            @Override
+            public void run() {
+                synchronized (Room.this) {
+                    if (!gameStarted) return;
+                    JsonObject turnUpdate = new JsonObject();
+                    turnUpdate.addProperty("type", "NEXT_TURN");
+                    turnUpdate.addProperty("turn", nextPlayer);
+                    broadcastToAll(turnUpdate.toString());
+                    startTurnTimer(nextPlayer);
+                }
+            }
+        }, TRICK_CLEAR_DELAY_MS);
     }
 
     // ── Action Handlers ───────────────────────────────────────────────────────
@@ -154,6 +221,7 @@ public class Room {
                 }
             }
             connections.put(playerName, conn);
+            cancelIdleTimer(); // room is active — cancel any pending destruction
             logger.info("{} reconnected to room {}.", playerName, roomCode);
             broadcastPlayersSync();
             sendStateSync(conn, playerName);
@@ -170,6 +238,9 @@ public class Room {
         players.put(playerName, newPlayer);
         connections.put(playerName, conn);
         turnOrder.add(playerName);
+        cancelIdleTimer(); // room is active — cancel any pending destruction
+        // First joiner becomes the room creator
+        if (creatorName == null) creatorName = playerName;
         logger.info("{} joined room {}.", playerName, roomCode);
         broadcastPlayersSync();
     }
@@ -222,12 +293,52 @@ public class Room {
     }
 
     /**
+     * Fills remaining slots with bots and starts the game immediately.
+     * Only the room creator (first human to join) can call this.
+     */
+    public void handleStartWithBots(WebSocket conn) {
+        String name = getPlayerName(conn);
+        if (name == null || gameStarted) return;
+
+        // Only the creator can trigger this
+        if (!name.equals(creatorName)) {
+            conn.send("{\"type\":\"ERROR\",\"message\":\"Only the room creator can start with bots.\"}" );
+            return;
+        }
+
+        if (players.size() >= 4) {
+            // Already full — just start
+            startGame();
+            return;
+        }
+
+        int botIdx = 0;
+        while (players.size() < 4) {
+            String botName = BOT_NAMES[botIdx++];
+            BotPlayer bot = new BotPlayer(botName);
+            players.put(botName, bot);
+            turnOrder.add(botName);
+        }
+        logger.info("Room {}: filling {} bot(s) and starting game.", roomCode, botIdx);
+        broadcastPlayersSync();
+        startGame();
+    }
+
+    /**
      * Marks a player as ready. Starts the game when all 4 are ready.
+     * Bots are auto-readied when any human clicks ready.
      */
     public void handleReady(WebSocket conn) {
         String name = getPlayerName(conn);
         if (name == null) return;
         if (gameStarted || !readyPlayers.add(name)) return;
+
+        // Auto-ready all bots
+        for (Map.Entry<String, Player> entry : players.entrySet()) {
+            if (entry.getValue().isBot()) {
+                readyPlayers.add(entry.getKey());
+            }
+        }
 
         JsonObject readyUpdate = new JsonObject();
         readyUpdate.addProperty("type", "READY_UPDATE");
@@ -508,11 +619,8 @@ public class Room {
                 gameStarted = false;
                 timerManager.cancel();
             } else {
-                JsonObject turnUpdate = new JsonObject();
-                turnUpdate.addProperty("type", "NEXT_TURN");
-                turnUpdate.addProperty("turn", winner.getName());
-                broadcastToAll(turnUpdate.toString());
-                startTurnTimer(winner.getName());
+                // Delay next turn so frontend can show trick winner and clear the table
+                startNextTurnAfterTrick(winner.getName());
             }
         } else {
             currentPlayTurnIndex = (currentPlayTurnIndex + 1) % 4;
